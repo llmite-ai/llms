@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/invopop/jsonschema"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/jpoz/llmite"
 	"github.com/jpoz/llmite/anthropic"
+	"github.com/jpoz/llmite/testutil"
 )
 
 type AnthropicTestSuite struct {
@@ -26,7 +26,7 @@ type AnthropicTestSuite struct {
 func (suite *AnthropicTestSuite) TestGenerateBasic() {
 	suite.T().Parallel() // Enable parallel execution for this method
 	ctx := context.Background()
-	client := anthropic.NewAnthropic(
+	client := anthropic.New(
 		anthropic.WithHttpLogging(),
 	)
 
@@ -44,7 +44,7 @@ func (suite *AnthropicTestSuite) TestGenerateBasic() {
 func (suite *AnthropicTestSuite) TestGenerateSystemPrompt() {
 	suite.T().Parallel() // Enable parallel execution for this method
 	ctx := context.Background()
-	client := anthropic.NewAnthropic(
+	client := anthropic.New(
 		anthropic.WithHttpLogging(),
 	)
 
@@ -67,9 +67,9 @@ func (suite *AnthropicTestSuite) TestGenerateSystemPrompt() {
 func (suite *AnthropicTestSuite) TestGenerateWithToolCalls() {
 	suite.T().Parallel() // Enable parallel execution for this method
 	ctx := context.Background()
-	client := anthropic.NewAnthropic(
+	client := anthropic.New(
 		anthropic.WithTools([]llmite.Tool{
-			NewBoopTool(),
+			testutil.NewBoopTool(),
 		}),
 		anthropic.WithHttpLogging(),
 	)
@@ -94,7 +94,7 @@ func (suite *AnthropicTestSuite) TestGenerateWithToolCalls() {
 		case llmite.ToolCallPart:
 			hasToolPart = true
 
-			var params BoopToolParams
+			var params testutil.BoopToolParams
 			err := json.Unmarshal(p.Input, &params)
 			suite.NoError(err)
 		}
@@ -106,42 +106,4 @@ func (suite *AnthropicTestSuite) TestGenerateWithToolCalls() {
 
 func TestAnthropicTestSuite(t *testing.T) {
 	suite.Run(t, new(AnthropicTestSuite))
-}
-
-type BoopTool struct{}
-
-func NewBoopTool() llmite.Tool {
-	return &BoopTool{}
-}
-
-func (t *BoopTool) Name() string {
-	return "boop"
-}
-
-func (t *BoopTool) Description() string {
-	return `This tool is used to translate boops for user. It takes a single parameter, "boops", which is a string containing the boops. The tool will return the string with the boops translated.`
-}
-
-type BoopToolParams struct {
-	BoopString string `json:"boops" jsonschema:"title=Boop String,description=The string containing the boops"`
-}
-
-func (t *BoopTool) Schema() *jsonschema.Schema {
-	return llmite.GenerateSchema[BoopToolParams]()
-}
-
-func (t *BoopTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
-	var params BoopToolParams
-	err := json.Unmarshal(args, &params)
-	if err != nil {
-		return &llmite.ToolResult{
-			ID:    "boop",
-			Error: err,
-		}
-	}
-
-	return &llmite.ToolResult{
-		ID:      "boop",
-		Content: `beep boop beep boop` + params.BoopString,
-	}
 }

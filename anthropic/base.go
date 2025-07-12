@@ -14,9 +14,7 @@ import (
 
 const ProviderAnthropic = "anthropic"
 
-type Anthropic struct {
-
-	// Settings
+type Client struct {
 	Model       string
 	MaxTokens   int64
 	Temperature *float64
@@ -28,13 +26,13 @@ type Anthropic struct {
 	options []option.RequestOption
 }
 
-type Modifer func(*Anthropic)
+type Modifer func(*Client)
 
 // WithOptions allows you to set options on the client. This is useful for setting
 // options that are not exposed by the llmite.Anthropic struct, such as setting a
 // custom HTTP client, timeout, or base URL.
 func WithAnthropicClientOptions(options ...option.RequestOption) Modifer {
-	return func(a *Anthropic) {
+	return func(a *Client) {
 		a.options = options
 	}
 }
@@ -42,7 +40,7 @@ func WithAnthropicClientOptions(options ...option.RequestOption) Modifer {
 // WithHttpLogging will log all HTTP requests and responses to the default structured
 // logger.
 func WithHttpLogging() Modifer {
-	return func(a *Anthropic) {
+	return func(a *Client) {
 		client := llmite.NewDefaultHTTPClientWithLogging()
 		a.options = append(a.options, option.WithHTTPClient(client))
 	}
@@ -50,30 +48,30 @@ func WithHttpLogging() Modifer {
 
 // WithModel allows you to set the model on the client.
 func WithModel(model string) Modifer {
-	return func(a *Anthropic) {
+	return func(a *Client) {
 		a.Model = model
 	}
 }
 
 // WithMaxTokens allows you to set the max tokens on the client.
 func WithMaxTokens(maxTokens int64) Modifer {
-	return func(a *Anthropic) {
+	return func(a *Client) {
 		a.MaxTokens = maxTokens
 	}
 }
 
 // With Tools allows you to set the tools on the client.
 func WithTools(tools []llmite.Tool) Modifer {
-	return func(a *Anthropic) {
+	return func(a *Client) {
 		a.Tools = tools
 	}
 }
 
-// NewAnthropicFrom creates a new Anthropic client with the packages default options.
+// New creates a new Anthropic client with the packages default options.
 // This includes reading the ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, and
 // ANTHROPIC_BASE_URL environment variables.
-func NewAnthropic(mods ...Modifer) *Anthropic {
-	c := &Anthropic{
+func New(mods ...Modifer) llmite.LLM {
+	c := &Client{
 		Model:     string(anthropic.ModelClaude3_7SonnetLatest),
 		MaxTokens: 1024,
 		options:   []option.RequestOption{},
@@ -92,11 +90,11 @@ func NewAnthropic(mods ...Modifer) *Anthropic {
 }
 
 // GetClient returns the underlying anthropic client.
-func (a *Anthropic) GetClient() *anthropic.Client {
+func (a *Client) GetClient() *anthropic.Client {
 	return a.client
 }
 
-func (a *Anthropic) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
+func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
 	system, anthMessages, err := convertMessages(messages)
 	if err != nil {
 		return nil, err
@@ -165,12 +163,12 @@ func (a *Anthropic) Generate(ctx context.Context, messages []llmite.Message) (*l
 	return out, nil
 }
 
-func (a *Anthropic) GenerateStream(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
+func (a *Client) GenerateStream(ctx context.Context, messages []llmite.Message, fn llmite.StreamFunc) (*llmite.Response, error) {
 	return nil, fmt.Errorf("anthropic: streaming is not supported")
 }
 
-func (a *Anthropic) copy() *Anthropic {
-	return &Anthropic{
+func (a *Client) copy() *Client {
+	return &Client{
 		client:      a.client,
 		MaxTokens:   a.MaxTokens,
 		Temperature: a.Temperature,
