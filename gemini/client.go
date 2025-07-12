@@ -128,7 +128,13 @@ func New(modifiers ...Modifer) (llmite.LLM, error) {
 }
 
 func (c *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
-	return nil, fmt.Errorf("GenerateResponse not implemented for GeminiProvider")
+	resp, err := c.GenerateStream(ctx, messages, func(response *llmite.Response, err error) bool {
+		return true // Continue streaming until done
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (c *Client) GenerateStream(ctx context.Context, messages []llmite.Message, fn llmite.StreamFunc) (*llmite.Response, error) {
