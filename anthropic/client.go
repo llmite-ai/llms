@@ -167,18 +167,6 @@ func (a *Client) GenerateStream(ctx context.Context, messages []llmite.Message, 
 	return nil, fmt.Errorf("anthropic: streaming is not supported")
 }
 
-func (a *Client) copy() *Client {
-	return &Client{
-		client:      a.client,
-		MaxTokens:   a.MaxTokens,
-		Temperature: a.Temperature,
-		Model:       a.Model,
-		TopP:        a.TopP,
-		TopK:        a.TopK,
-		Tools:       a.Tools,
-	}
-}
-
 func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []anthropic.MessageParam, error) {
 	system := []anthropic.TextBlockParam{}
 	out := make([]anthropic.MessageParam, 0, len(messages))
