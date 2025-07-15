@@ -764,6 +764,87 @@ func UnmarshalRequestContentBlocks(data []byte) ([]RequestContentBlock, error) {
 }
 
 // ============================================================================
+// STREAMING EVENT TYPES
+// ============================================================================
+
+// StreamEvent represents a server-sent event
+type StreamEvent struct {
+	Event string `json:"-"`
+	Data  string `json:"-"`
+}
+
+// Streaming event types
+type MessageStartEvent struct {
+	Type    string                `json:"type"`
+	Message CreateMessageResponse `json:"message"`
+}
+
+type ContentBlockStartEvent struct {
+	Type         string                `json:"type"`
+	Index        int                   `json:"index"`
+	ContentBlock StreamingContentBlock `json:"content_block"`
+}
+
+type ContentBlockDeltaEvent struct {
+	Type  string `json:"type"`
+	Index int    `json:"index"`
+	Delta Delta  `json:"delta"`
+}
+
+type ContentBlockStopEvent struct {
+	Type  string `json:"type"`
+	Index int    `json:"index"`
+}
+
+type MessageDeltaEvent struct {
+	Type  string       `json:"type"`
+	Delta MessageDelta `json:"delta"`
+	Usage *Usage       `json:"usage,omitempty"`
+}
+
+type MessageStopEvent struct {
+	Type string `json:"type"`
+}
+
+type PingEvent struct {
+	Type string `json:"type"`
+}
+
+type ErrorEvent struct {
+	Type  string `json:"type"`
+	Error Error  `json:"error"`
+}
+
+// Delta types for content block deltas
+type Delta struct {
+	Type        string `json:"type"`
+	Text        string `json:"text,omitempty"`         // for text_delta
+	PartialJSON string `json:"partial_json,omitempty"` // for input_json_delta
+	Thinking    string `json:"thinking,omitempty"`     // for thinking_delta
+	Signature   string `json:"signature,omitempty"`    // for signature_delta
+}
+
+// MessageDelta for message-level changes
+type MessageDelta struct {
+	StopReason   *string `json:"stop_reason,omitempty"`
+	StopSequence *string `json:"stop_sequence,omitempty"`
+}
+
+// StreamingContentBlock for content block start events
+type StreamingContentBlock struct {
+	Type     string         `json:"type"`
+	Text     string         `json:"text,omitempty"`
+	ID       string         `json:"id,omitempty"`
+	Name     string         `json:"name,omitempty"`
+	Input    map[string]any `json:"input,omitempty"`
+	Thinking string         `json:"thinking,omitempty"`
+}
+
+func (s StreamingContentBlock) GetType() string {
+	return s.Type
+}
+
+// ============================================================================
 // CONTENT BLOCK TYPES (for JSON marshalling)
 // ============================================================================
 

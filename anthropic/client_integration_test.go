@@ -104,6 +104,46 @@ func (suite *AnthropicTestSuite) TestGenerateWithToolCalls() {
 	suite.True(hasToolPart, "response should have a tool call part")
 }
 
+func (suite *AnthropicTestSuite) TestGenerateStreamingWithToolCalls() {
+	suite.T().Parallel() // Enable parallel execution for this method
+	ctx := context.Background()
+	client := anthropic.New(
+		anthropic.WithTools([]llmite.Tool{
+			testutil.NewBoopTool(),
+		}),
+		anthropic.WithHttpLogging(),
+	)
+
+	systemMsg := llmite.NewTextMessage(llmite.RoleSystem, "You are a helpful assistant. That helps the user translate things.")
+	userMsg := llmite.NewTextMessage(llmite.RoleUser, "My computer said `boop boop boop` when I turned it on. What does that mean?")
+
+	resp, err := client.GenerateStream(ctx, []llmite.Message{systemMsg, userMsg}, func(response *llmite.Response, err error) bool { return true })
+	suite.Require().NoError(err)
+	suite.NotEmpty(resp.ID)
+	suite.Require().NotEmpty(resp.Message.Parts)
+
+	fmt.Printf("Response: %+v\n", resp)
+
+	hasTextPart := false
+	hasToolPart := false
+
+	for _, part := range resp.Message.Parts {
+		switch p := part.(type) {
+		case llmite.TextPart:
+			hasTextPart = true
+		case llmite.ToolCallPart:
+			hasToolPart = true
+
+			var params testutil.BoopToolParams
+			err := json.Unmarshal(p.Input, &params)
+			suite.NoError(err)
+		}
+	}
+
+	suite.True(hasTextPart, "response should have a text part")
+	suite.True(hasToolPart, "response should have a tool call part")
+}
+
 func TestAnthropicTestSuite(t *testing.T) {
 	suite.Run(t, new(AnthropicTestSuite))
 }

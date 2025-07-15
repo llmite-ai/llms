@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/jpoz/llmite"
 )
@@ -108,53 +110,10 @@ func New(mods ...Modifer) llmite.LLM {
 }
 
 func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
-	system, requestMessages, err := convertMessages(messages)
+	request, err := a.buildRequest(messages, false)
 	if err != nil {
-		return nil, fmt.Errorf("anthropic: failed to convert messages: %w", err)
+		return nil, err
 	}
-
-	tools, err := convertTools(a.Tools)
-	if err != nil {
-		return nil, fmt.Errorf("anthropic: failed to convert tools: %w", err)
-	}
-
-	requestBody := CreateMessageRequest{
-		Model:     a.Model,
-		MaxTokens: a.MaxTokens,
-		TopP:      a.TopP,
-		TopK:      a.TopK,
-		Messages:  requestMessages,
-	}
-
-	if len(system) > 0 {
-		requestBody.System = system
-	}
-
-	if len(tools) > 0 {
-		requestBody.Tools = tools
-	}
-
-	bodyBytes, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, fmt.Errorf("anthropic: failed to marshal request body: %w", err)
-	}
-
-	bodyBuffer := io.NopCloser(bytes.NewReader(bodyBytes))
-
-	url, err := url.JoinPath(a.baseURL, "/v1/messages")
-	if err != nil {
-		return nil, fmt.Errorf("anthropic: failed to join URL path: %w (%s,%s)", err, a.baseURL, "/v1/messages")
-	}
-
-	request, err := http.NewRequest("POST", url, bodyBuffer)
-	if err != nil {
-		return nil, fmt.Errorf("anthropic: failed to create request: %w", err)
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("anthropic-version", Version)
-	request.Header.Set("x-api-key", a.token)
 
 	response, err := a.client.Do(request)
 	if err != nil {
@@ -202,7 +161,84 @@ func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 }
 
 func (a *Client) GenerateStream(ctx context.Context, messages []llmite.Message, fn llmite.StreamFunc) (*llmite.Response, error) {
-	return nil, fmt.Errorf("anthropic: streaming is not supported")
+	request, err := a.buildRequest(messages, true)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := a.client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: request failed: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != 200 {
+		return nil, fmt.Errorf("anthropic: unexpected status code: %d", response.StatusCode)
+	}
+
+	// Parse the streaming response
+	finalResponse, err := a.parseSSEStream(ctx, response.Body, fn)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to parse stream: %w", err)
+	}
+
+	return finalResponse, nil
+}
+
+func (a *Client) buildRequest(messages []llmite.Message, streaming bool) (*http.Request, error) {
+	system, requestMessages, err := convertMessages(messages)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to convert messages: %w", err)
+	}
+
+	tools, err := convertTools(a.Tools)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to convert tools: %w", err)
+	}
+
+	requestBody := CreateMessageRequest{
+		Model:     a.Model,
+		MaxTokens: a.MaxTokens,
+		TopP:      a.TopP,
+		TopK:      a.TopK,
+		Messages:  requestMessages,
+	}
+
+	if streaming {
+		requestBody.Stream = &streaming
+	}
+
+	if len(system) > 0 {
+		requestBody.System = system
+	}
+
+	if len(tools) > 0 {
+		requestBody.Tools = tools
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to marshal request body: %w", err)
+	}
+
+	bodyBuffer := io.NopCloser(bytes.NewReader(bodyBytes))
+
+	url, err := url.JoinPath(a.baseURL, "/v1/messages")
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to join URL path: %w (%s,%s)", err, a.baseURL, "/v1/messages")
+	}
+
+	request, err := http.NewRequest("POST", url, bodyBuffer)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to create request: %w", err)
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("anthropic-version", Version)
+	request.Header.Set("x-api-key", a.token)
+
+	return request, nil
 }
 
 func convertMessages(messages []llmite.Message) (SystemPrompt, []InputMessage, error) {
@@ -245,18 +281,23 @@ func convertMessages(messages []llmite.Message) (SystemPrompt, []InputMessage, e
 				}
 				inputMsg.Content = append(inputMsg.Content, block)
 			case llmite.ToolCallPart:
+				var input map[string]any
+
+				err := json.Unmarshal(p.Input, &input)
+				if err != nil {
+					return nil, nil, fmt.Errorf("anthropic: failed to unmarshal tool call input JSON for tool '%s': %w", p.Name, err)
+				}
+
 				block := RequestToolUseBlock{
-					ID:   p.ID,
-					Name: p.Name,
-					// Input: p.Input,
+					ID:    p.ID,
+					Name:  p.Name,
+					Input: input,
 				}
 				inputMsg.Content = append(inputMsg.Content, block)
 			case llmite.ToolResultPart:
 				block := RequestToolResultBlock{
 					ToolUseID: p.ToolCallID,
-					// Content: []RequestToolResultContentBlock{
-					// 	{Text: p.Result},
-					// },
+					Content:   p.Result,
 				}
 				inputMsg.Content = append(inputMsg.Content, block)
 			default:
@@ -304,4 +345,242 @@ func convertTools(tools []llmite.Tool) ([]Tool, error) {
 	}
 
 	return out, nil
+}
+
+func (a *Client) parseSSEStream(ctx context.Context, body io.Reader, fn llmite.StreamFunc) (*llmite.Response, error) {
+	scanner := bufio.NewScanner(body)
+
+	var anthropicResponse *CreateMessageResponse
+	var currentEvent StreamEvent
+	var streamingParts []llmite.Part
+	var currentTextBuilder strings.Builder
+	var currentToolCall *llmite.ToolCallPart
+	var responseID string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		// Parse SSE format
+		if strings.HasPrefix(line, "event: ") {
+			currentEvent.Event = strings.TrimPrefix(line, "event: ")
+		} else if strings.HasPrefix(line, "data: ") {
+			currentEvent.Data = strings.TrimPrefix(line, "data: ")
+		} else if line == "" {
+			// Empty line indicates end of event, process it
+			if currentEvent.Event != "" && currentEvent.Data != "" {
+				shouldContinue, err := a.processStreamEvent(
+					currentEvent,
+					fn,
+					&anthropicResponse,
+					&streamingParts,
+					&currentTextBuilder,
+					&currentToolCall,
+					&responseID,
+				)
+				if err != nil {
+					return nil, err
+				}
+				if !shouldContinue {
+					break
+				}
+			}
+			// Reset for next event
+			currentEvent = StreamEvent{}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading stream: %w", err)
+	}
+
+	if anthropicResponse == nil {
+		return nil, fmt.Errorf("no message received in stream")
+	}
+
+	// Build final response
+	finalResponse := &llmite.Response{
+		ID: responseID,
+		Message: llmite.Message{
+			Role:  llmite.RoleAssistant,
+			Parts: streamingParts,
+		},
+		Provider: "anthropic",
+		Raw:      anthropicResponse,
+	}
+
+	return finalResponse, nil
+}
+
+func (a *Client) processStreamEvent(
+	event StreamEvent,
+	fn llmite.StreamFunc,
+	anthropicResponse **CreateMessageResponse,
+	streamingParts *[]llmite.Part,
+	currentTextBuilder *strings.Builder,
+	currentToolCall **llmite.ToolCallPart,
+	responseID *string,
+) (bool, error) {
+	switch event.Event {
+	case "message_start":
+		var msgStart MessageStartEvent
+		if err := json.Unmarshal([]byte(event.Data), &msgStart); err != nil {
+			return false, fmt.Errorf("failed to unmarshal message_start: %w", err)
+		}
+		*anthropicResponse = &msgStart.Message
+		*responseID = msgStart.Message.ID
+
+	case "content_block_start":
+		var blockStart ContentBlockStartEvent
+		if err := json.Unmarshal([]byte(event.Data), &blockStart); err != nil {
+			return false, fmt.Errorf("failed to unmarshal content_block_start: %w", err)
+		}
+
+		// Initialize based on content block type
+		switch blockStart.ContentBlock.Type {
+		case "text":
+			currentTextBuilder.Reset()
+		case "tool_use":
+			// Parse the tool use block to get ID and name
+			*currentToolCall = &llmite.ToolCallPart{
+				ID:    blockStart.ContentBlock.ID,
+				Name:  blockStart.ContentBlock.Name,
+				Input: json.RawMessage("{}"), // Will be built up from deltas
+			}
+		}
+
+	case "content_block_delta":
+		var blockDelta ContentBlockDeltaEvent
+		if err := json.Unmarshal([]byte(event.Data), &blockDelta); err != nil {
+			return false, fmt.Errorf("failed to unmarshal content_block_delta: %w", err)
+		}
+
+		switch blockDelta.Delta.Type {
+		case "text_delta":
+			currentTextBuilder.WriteString(blockDelta.Delta.Text)
+
+			// Create a streaming response with the current state
+			if fn != nil {
+				currentParts := make([]llmite.Part, len(*streamingParts))
+				copy(currentParts, *streamingParts)
+
+				// Add the current text being built
+				if currentTextBuilder.Len() > 0 {
+					currentParts = append(currentParts, llmite.TextPart{
+						Text: currentTextBuilder.String(),
+					})
+				}
+
+				streamResponse := &llmite.Response{
+					ID: *responseID,
+					Message: llmite.Message{
+						Role:  llmite.RoleAssistant,
+						Parts: currentParts,
+					},
+					Provider: "anthropic",
+					Raw:      *anthropicResponse,
+				}
+
+				shouldContinue := fn(streamResponse, nil)
+				if !shouldContinue {
+					return false, nil
+				}
+			}
+
+		case "input_json_delta":
+			// Build up the tool input JSON
+			if *currentToolCall != nil {
+				// Append the partial JSON to build the complete input
+				currentInput := string((*currentToolCall).Input)
+				if currentInput == "{}" {
+					currentInput = ""
+				}
+				currentInput += blockDelta.Delta.PartialJSON
+				(*currentToolCall).Input = json.RawMessage(currentInput)
+			}
+
+		case "thinking_delta":
+			// For now, we'll ignore thinking deltas
+
+		case "signature_delta":
+			// For now, we'll ignore signature deltas
+		}
+
+	case "content_block_stop":
+		var blockStop ContentBlockStopEvent
+		if err := json.Unmarshal([]byte(event.Data), &blockStop); err != nil {
+			return false, fmt.Errorf("failed to unmarshal content_block_stop: %w", err)
+		}
+
+		// Finalize the current content block
+		if currentTextBuilder.Len() > 0 {
+			*streamingParts = append(*streamingParts, llmite.TextPart{
+				Text: currentTextBuilder.String(),
+			})
+			currentTextBuilder.Reset()
+		}
+
+		if *currentToolCall != nil {
+			*streamingParts = append(*streamingParts, **currentToolCall)
+			*currentToolCall = nil
+		}
+
+	case "message_delta":
+		var msgDelta MessageDeltaEvent
+		if err := json.Unmarshal([]byte(event.Data), &msgDelta); err != nil {
+			return false, fmt.Errorf("failed to unmarshal message_delta: %w", err)
+		}
+
+		if *anthropicResponse != nil {
+			if msgDelta.Delta.StopReason != nil {
+				(*anthropicResponse).StopReason = msgDelta.Delta.StopReason
+			}
+			if msgDelta.Delta.StopSequence != nil {
+				(*anthropicResponse).StopSequence = msgDelta.Delta.StopSequence
+			}
+			if msgDelta.Usage != nil {
+				(*anthropicResponse).Usage = *msgDelta.Usage
+			}
+		}
+
+	case "message_stop":
+		// Stream is complete - send final response
+		if fn != nil {
+			finalResponse := &llmite.Response{
+				ID: *responseID,
+				Message: llmite.Message{
+					Role:  llmite.RoleAssistant,
+					Parts: *streamingParts,
+				},
+				Provider: "anthropic",
+				Raw:      *anthropicResponse,
+			}
+			fn(finalResponse, nil)
+		}
+
+	case "ping":
+		// Just a keep-alive, ignore
+
+	case "error":
+		var errEvent ErrorEvent
+		if err := json.Unmarshal([]byte(event.Data), &errEvent); err != nil {
+			return false, fmt.Errorf("failed to unmarshal error event: %w", err)
+		}
+
+		if fn != nil {
+			fn(nil, fmt.Errorf("stream error: %s", errEvent.Error.Message))
+		}
+		return false, fmt.Errorf("stream error: %s", errEvent.Error.Message)
+
+	default:
+		return false, fmt.Errorf("unknown stream event type: %s", event.Event)
+	}
+
+	return true, nil
 }

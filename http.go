@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -33,6 +34,7 @@ func NewHTTPClient(options HTTPClientOptions) *http.Client {
 			LogRequestBody:  true,
 			LogResponseBody: true,
 			MaxBodySize:     1024, // Default 1KB max body logging
+			StreamingLog:    false, // Disabled by default
 		}
 	}
 	return &http.Client{
@@ -54,6 +56,26 @@ func NewDefaultHTTPClientWithLogging() *http.Client {
 	}
 }
 
+// NewStreamingHTTPClientWithLogging creates an http.Client with streaming logging enabled
+func NewStreamingHTTPClientWithLogging(logger *slog.Logger, maxBodySize int64) *http.Client {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if maxBodySize == 0 {
+		maxBodySize = 1024 * 4 // Default 4KB for streaming
+	}
+	
+	return &http.Client{
+		Transport: NewLoggingRoundTripper(nil, logger, LoggingConfig{
+			LogHeaders:      true,
+			LogRequestBody:  true,
+			LogResponseBody: true,
+			MaxBodySize:     maxBodySize,
+			StreamingLog:    true,
+		}),
+	}
+}
+
 // LoggingRoundTripper implements http.RoundTripper with logging
 type LoggingRoundTripper struct {
 	transport http.RoundTripper
@@ -67,6 +89,7 @@ type LoggingConfig struct {
 	LogRequestBody  bool
 	LogResponseBody bool
 	MaxBodySize     int64 // Maximum body size to log in bytes
+	StreamingLog    bool  // Enable streaming body logging (logs chunks as they're read)
 }
 
 func DefaultLoggingConfig() LoggingConfig {
@@ -75,6 +98,7 @@ func DefaultLoggingConfig() LoggingConfig {
 		LogRequestBody:  true,
 		LogResponseBody: true,
 		MaxBodySize:     1024, // Default 1KB max body logging
+		StreamingLog:    false, // Disabled by default for backward compatibility
 	}
 }
 
@@ -104,6 +128,7 @@ func NewDefaultLoggingRoundTripper() *LoggingRoundTripper {
 		LogRequestBody:  true,
 		LogResponseBody: true,
 		MaxBodySize:     1024,
+		StreamingLog:    false,
 	})
 }
 
@@ -180,9 +205,15 @@ func (t *LoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 
 	// Log response body if enabled
 	if t.config.LogResponseBody && resp.Body != nil {
-		if bodyBytes, newBody, err := t.captureResponseBody(resp.Body, t.config.MaxBodySize); err == nil {
-			respAttrs = append(respAttrs, slog.String("response_body", string(bodyBytes)))
-			resp.Body = newBody
+		if t.config.StreamingLog {
+			// For streaming responses, wrap the body with a logging reader
+			resp.Body = t.newStreamingBodyLogger(resp.Body, requestID, t.config.MaxBodySize)
+		} else {
+			// For non-streaming responses, capture the entire body
+			if bodyBytes, newBody, err := t.captureResponseBody(resp.Body, t.config.MaxBodySize); err == nil {
+				respAttrs = append(respAttrs, slog.String("response_body", string(bodyBytes)))
+				resp.Body = newBody
+			}
 		}
 	}
 
@@ -252,4 +283,79 @@ func (t *LoggingRoundTripper) captureResponseBody(body io.ReadCloser, maxSize in
 	newBody := io.NopCloser(bytes.NewReader(bodyBytes))
 
 	return logBytes, newBody, nil
+}
+
+// streamingBodyLogger wraps an io.ReadCloser to log chunks as they're read
+type streamingBodyLogger struct {
+	body      io.ReadCloser
+	logger    *slog.Logger
+	requestID string
+	maxSize   int64
+	totalRead int64
+	buffer    *bytes.Buffer
+}
+
+// newStreamingBodyLogger creates a new streaming body logger
+func (t *LoggingRoundTripper) newStreamingBodyLogger(body io.ReadCloser, requestID string, maxSize int64) io.ReadCloser {
+	return &streamingBodyLogger{
+		body:      body,
+		logger:    t.logger,
+		requestID: requestID,
+		maxSize:   maxSize,
+		buffer:    &bytes.Buffer{},
+	}
+}
+
+// Read implements io.Reader and logs chunks as they're read
+func (s *streamingBodyLogger) Read(p []byte) (int, error) {
+	n, err := s.body.Read(p)
+	
+	if n > 0 {
+		// Log the chunk if we haven't exceeded the max size
+		if s.totalRead < s.maxSize {
+			remaining := s.maxSize - s.totalRead
+			toLog := int64(n)
+			if toLog > remaining {
+				toLog = remaining
+			}
+			
+			s.buffer.Write(p[:toLog])
+			s.totalRead += int64(n)
+			
+			// Log the chunk
+			chunk := string(p[:n])
+			if strings.Contains(chunk, "\n") {
+				// For multi-line chunks (like SSE), log each line
+				lines := strings.Split(strings.TrimRight(chunk, "\n"), "\n")
+				for _, line := range lines {
+					if line != "" {
+						s.logger.LogAttrs(nil, slog.LevelDebug, "HTTP streaming chunk",
+							slog.String("request_id", s.requestID),
+							slog.String("chunk", line),
+							slog.Int64("bytes_read", s.totalRead))
+					}
+				}
+			} else {
+				s.logger.LogAttrs(nil, slog.LevelDebug, "HTTP streaming chunk",
+					slog.String("request_id", s.requestID),
+					slog.String("chunk", chunk),
+					slog.Int64("bytes_read", s.totalRead))
+			}
+		}
+	}
+	
+	return n, err
+}
+
+// Close implements io.Closer and logs the final summary
+func (s *streamingBodyLogger) Close() error {
+	// Log final summary
+	if s.buffer.Len() > 0 {
+		s.logger.LogAttrs(nil, slog.LevelInfo, "HTTP streaming body complete",
+			slog.String("request_id", s.requestID),
+			slog.Int64("total_bytes", s.totalRead),
+			slog.String("logged_content", s.buffer.String()))
+	}
+	
+	return s.body.Close()
 }
