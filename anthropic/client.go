@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/jpoz/llmite"
@@ -23,8 +24,9 @@ type Client struct {
 	TopK        *int
 	Tools       []llmite.Tool
 
-	client *http.Client
-	token  string
+	baseURL string
+	client  *http.Client
+	token   string
 }
 
 type Modifer func(*Client)
@@ -35,6 +37,14 @@ type Modifer func(*Client)
 func WithApiKey(key string) Modifer {
 	return func(a *Client) {
 		a.token = key
+	}
+}
+
+// WithBaseURL allows you to set the base URL on the client. This is useful if you want to
+// set a custom base URL instead of using the default "https://api.anthropic.com".
+func WithBaseURL(url string) Modifer {
+	return func(a *Client) {
+		a.baseURL = url
 	}
 }
 
@@ -75,6 +85,7 @@ func New(mods ...Modifer) llmite.LLM {
 	c := &Client{
 		Model:     "claude-sonnet-4-20250514",
 		MaxTokens: 1024 * 10,
+		baseURL:   "https://api.anthropic.com",
 	}
 
 	for _, mod := range mods {
@@ -130,7 +141,12 @@ func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 
 	bodyBuffer := io.NopCloser(bytes.NewReader(bodyBytes))
 
-	request, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bodyBuffer)
+	url, err := url.JoinPath(a.baseURL, "/v1/messages")
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to join URL path: %w (%s,%s)", err, a.baseURL, "/v1/messages")
+	}
+
+	request, err := http.NewRequest("POST", url, bodyBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: failed to create request: %w", err)
 	}
