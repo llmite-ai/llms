@@ -22,7 +22,12 @@ test: ## Run tests.
 .PHONY: integration_tests
 integration_tests: ## Run integrations tests. Requires LLM env variables to be set.
 	@echo "${YELLOW}Running tests + integration tests...${RESET}"
-	$(GOTEST) -tags=integration ./...
+	$(GOTEST) -tags=integration -v ./...
+
+.PHONY: integration_anthropic
+integration_anthropic: ## Run integrations tests for Anthropic. Requires ANTHROPIC_API_KEY env variable to be set.
+	@echo "${YELLOW}Running tests + integration tests...${RESET}"
+	$(GOTEST) -tags=integration -v ./anthropic/...
 
 
 ## Help:

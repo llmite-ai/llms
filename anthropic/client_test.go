@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/invopop/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	orderedmap "github.com/wk8/go-ordered-map/v2"
 
 	"github.com/jpoz/llmite"
 )
@@ -173,9 +170,9 @@ func TestConvertMessages(t *testing.T) {
 				// Check that role conversion is correct
 				switch originalMsg.Role {
 				case llmite.RoleUser:
-					assert.Equal(t, anthropic.MessageParamRoleUser, msg.Role)
+					assert.Equal(t, "user", msg.Role)
 				case llmite.RoleAssistant:
-					assert.Equal(t, anthropic.MessageParamRoleAssistant, msg.Role)
+					assert.Equal(t, "assistant", msg.Role)
 				}
 
 				nonSystemIndex++
@@ -207,14 +204,14 @@ func TestConvertMessages_SystemMessages(t *testing.T) {
 	assert.Equal(t, "First system message", system[0].Text)
 	assert.Equal(t, "Second system message", system[1].Text)
 	assert.Len(t, anthMessages, 1)
-	assert.Equal(t, anthropic.MessageParamRoleUser, anthMessages[0].Role)
+	assert.Equal(t, "user", anthMessages[0].Role)
 }
 
 // Mock tool for testing
 type mockTool struct {
 	name        string
 	description string
-	schema      *jsonschema.Schema
+	schema      map[string]interface{}
 }
 
 func (m *mockTool) Name() string {
@@ -225,7 +222,7 @@ func (m *mockTool) Description() string {
 	return m.description
 }
 
-func (m *mockTool) Schema() *jsonschema.Schema {
+func (m *mockTool) Schema() map[string]interface{} {
 	return m.schema
 }
 
@@ -253,14 +250,14 @@ func TestConvertTools(t *testing.T) {
 				&mockTool{
 					name:        "test_tool",
 					description: "A test tool",
-					schema: &jsonschema.Schema{
-						Type: "object",
-						Properties: func() *orderedmap.OrderedMap[string, *jsonschema.Schema] {
-							props := orderedmap.New[string, *jsonschema.Schema]()
-							props.Set("input", &jsonschema.Schema{Type: "string"})
-							return props
-						}(),
-						Required: []string{"input"},
+					schema: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"input": map[string]interface{}{
+								"type": "string",
+							},
+						},
+						"required": []string{"input"},
 					},
 				},
 			},
@@ -272,28 +269,31 @@ func TestConvertTools(t *testing.T) {
 				&mockTool{
 					name:        "calculator",
 					description: "Calculate mathematical expressions",
-					schema: &jsonschema.Schema{
-						Type: "object",
-						Properties: func() *orderedmap.OrderedMap[string, *jsonschema.Schema] {
-							props := orderedmap.New[string, *jsonschema.Schema]()
-							props.Set("expression", &jsonschema.Schema{Type: "string"})
-							return props
-						}(),
-						Required: []string{"expression"},
+					schema: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"expression": map[string]interface{}{
+								"type": "string",
+							},
+						},
+						"required": []string{"expression"},
 					},
 				},
 				&mockTool{
 					name:        "weather",
 					description: "Get weather information",
-					schema: &jsonschema.Schema{
-						Type: "object",
-						Properties: func() *orderedmap.OrderedMap[string, *jsonschema.Schema] {
-							props := orderedmap.New[string, *jsonschema.Schema]()
-							props.Set("location", &jsonschema.Schema{Type: "string"})
-							props.Set("unit", &jsonschema.Schema{Type: "string", Enum: []interface{}{"celsius", "fahrenheit"}})
-							return props
-						}(),
-						Required: []string{"location"},
+					schema: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"location": map[string]interface{}{
+								"type": "string",
+							},
+							"unit": map[string]interface{}{
+								"type": "string",
+								"enum": []interface{}{"celsius", "fahrenheit"},
+							},
+						},
+						"required": []string{"location"},
 					},
 				},
 			},
@@ -314,16 +314,16 @@ func TestConvertTools(t *testing.T) {
 			assert.Len(t, result, len(tt.tools))
 
 			for i, tool := range result {
-				assert.NotNil(t, tool.OfTool)
-				assert.Equal(t, tt.tools[i].Name(), tool.OfTool.Name)
-				if tool.OfTool.Description.Valid() {
-					assert.Equal(t, tt.tools[i].Description(), tool.OfTool.Description.Value)
+				assert.NotNil(t, tool)
+				assert.Equal(t, tt.tools[i].Name(), tool.Name)
+				if tool.Description != nil {
+					assert.Equal(t, tt.tools[i].Description(), *tool.Description)
 				}
 
 				// Verify schema conversion
 				originalSchema := tt.tools[i].Schema()
-				assert.Equal(t, originalSchema.Properties, tool.OfTool.InputSchema.Properties)
-				assert.Equal(t, originalSchema.Required, tool.OfTool.InputSchema.Required)
+				assert.Equal(t, originalSchema["properties"], tool.InputSchema.Properties)
+				assert.Equal(t, originalSchema["required"], tool.InputSchema.Required)
 			}
 		})
 	}
@@ -333,26 +333,34 @@ func TestConvertTools_SchemaValidation(t *testing.T) {
 	tool := &mockTool{
 		name:        "complex_tool",
 		description: "A tool with complex schema",
-		schema: &jsonschema.Schema{
-			Type: "object",
-			Properties: func() *orderedmap.OrderedMap[string, *jsonschema.Schema] {
-				props := orderedmap.New[string, *jsonschema.Schema]()
-				props.Set("string_field", &jsonschema.Schema{Type: "string"})
-				props.Set("number_field", &jsonschema.Schema{Type: "number"})
-				props.Set("boolean_field", &jsonschema.Schema{Type: "boolean"})
-				props.Set("array_field", &jsonschema.Schema{
-					Type:  "array",
-					Items: &jsonschema.Schema{Type: "string"},
-				})
-				nestedProps := orderedmap.New[string, *jsonschema.Schema]()
-				nestedProps.Set("nested", &jsonschema.Schema{Type: "string"})
-				props.Set("object_field", &jsonschema.Schema{
-					Type:       "object",
-					Properties: nestedProps,
-				})
-				return props
-			}(),
-			Required: []string{"string_field", "number_field"},
+		schema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"string_field": map[string]interface{}{
+					"type": "string",
+				},
+				"number_field": map[string]interface{}{
+					"type": "number",
+				},
+				"boolean_field": map[string]interface{}{
+					"type": "boolean",
+				},
+				"array_field": map[string]interface{}{
+					"type": "array",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"object_field": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"nested": map[string]interface{}{
+							"type": "string",
+						},
+					},
+				},
+			},
+			"required": []string{"string_field", "number_field"},
 		},
 	}
 
@@ -360,13 +368,13 @@ func TestConvertTools_SchemaValidation(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 
-	anthTool := result[0].OfTool
+	anthTool := result[0]
 	assert.Equal(t, "complex_tool", anthTool.Name)
-	if anthTool.Description.Valid() {
-		assert.Equal(t, "A tool with complex schema", anthTool.Description.Value)
+	if anthTool.Description != nil {
+		assert.Equal(t, "A tool with complex schema", *anthTool.Description)
 	}
 
 	schema := anthTool.InputSchema
-	assert.Equal(t, tool.schema.Properties, schema.Properties)
-	assert.Equal(t, tool.schema.Required, schema.Required)
+	assert.Equal(t, tool.schema["properties"], schema.Properties)
+	assert.Equal(t, tool.schema["required"], schema.Required)
 }

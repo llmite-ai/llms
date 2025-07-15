@@ -1,9 +1,5 @@
 package llmite
 
-import (
-	"github.com/invopop/jsonschema"
-)
-
 // Tool defines the interface that all tools must implement
 type Tool interface {
 	// Name of the tool.
@@ -21,7 +17,7 @@ type Tool interface {
 
 	// This defines the shape of the `input` that your tool accepts and that the model
 	// will produce.
-	Schema() *jsonschema.Schema
+	Schema() map[string]interface{}
 }
 
 // ToolResult represents the result of tool execution
@@ -29,19 +25,4 @@ type ToolResult struct {
 	ID      string `json:"id"`
 	Content string `json:"content"`
 	Error   error  `json:"error,omitempty"`
-}
-
-// GenerateSchema generates a JSON schema for the given type T.
-// This is a convenience wrapper around github.com/invopop/jsonschema that sets some
-// reasonable defaults for LLM tools. It is recommended to use this function to
-// generate the schema for your tool input types, but you can also construct the
-// schema manually if you need more control.
-func GenerateSchema[T any]() *jsonschema.Schema {
-	reflector := jsonschema.Reflector{
-		AllowAdditionalProperties: false,
-		DoNotReference:            true,
-	}
-	var v T
-
-	return reflector.Reflect(v)
 }

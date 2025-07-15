@@ -30,7 +30,7 @@ func (suite *AnthropicTestSuite) TestGenerateBasic() {
 		anthropic.WithHttpLogging(),
 	)
 
-	msg := llmite.NewTextMessage(llmite.RoleUser, "What is the meaning of life?")
+	msg := llmite.NewTextMessage(llmite.RoleUser, "What is the capital of France?")
 
 	resp, err := client.Generate(ctx, []llmite.Message{msg})
 	suite.NoError(err)

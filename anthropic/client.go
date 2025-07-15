@@ -1,39 +1,40 @@
 package anthropic
 
 import (
+	"bytes"
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
-
-	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/anthropics/anthropic-sdk-go/packages/param"
+	"io"
+	"net/http"
+	"os"
 
 	"github.com/jpoz/llmite"
 )
 
 const ProviderAnthropic = "anthropic"
+const Version = "2023-06-01"
 
 type Client struct {
 	Model       string
-	MaxTokens   int64
+	MaxTokens   int
 	Temperature *float64
 	TopP        *float64
-	TopK        *int64
+	TopK        *int
 	Tools       []llmite.Tool
 
-	client  *anthropic.Client
-	options []option.RequestOption
+	client *http.Client
+	token  string
 }
 
 type Modifer func(*Client)
 
-// WithOptions allows you to set options on the client. This is useful for setting
-// options that are not exposed by the llmite.Anthropic struct, such as setting a
-// custom HTTP client, timeout, or base URL.
-func WithAnthropicClientOptions(options ...option.RequestOption) Modifer {
+// WithApiKey allows you to set the API key on the client. This is useful if you want to
+// set the API key directly instead of using the ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN
+// environment variables.
+func WithApiKey(key string) Modifer {
 	return func(a *Client) {
-		a.options = options
+		a.token = key
 	}
 }
 
@@ -42,7 +43,7 @@ func WithAnthropicClientOptions(options ...option.RequestOption) Modifer {
 func WithHttpLogging() Modifer {
 	return func(a *Client) {
 		client := llmite.NewDefaultHTTPClientWithLogging()
-		a.options = append(a.options, option.WithHTTPClient(client))
+		a.client = client
 	}
 }
 
@@ -54,7 +55,7 @@ func WithModel(model string) Modifer {
 }
 
 // WithMaxTokens allows you to set the max tokens on the client.
-func WithMaxTokens(maxTokens int64) Modifer {
+func WithMaxTokens(maxTokens int) Modifer {
 	return func(a *Client) {
 		a.MaxTokens = maxTokens
 	}
@@ -72,9 +73,8 @@ func WithTools(tools []llmite.Tool) Modifer {
 // ANTHROPIC_BASE_URL environment variables.
 func New(mods ...Modifer) llmite.LLM {
 	c := &Client{
-		Model:     string(anthropic.ModelClaude3_7SonnetLatest),
-		MaxTokens: 1024,
-		options:   []option.RequestOption{},
+		Model:     "claude-sonnet-4-20250514",
+		MaxTokens: 1024 * 10,
 	}
 
 	for _, mod := range mods {
@@ -82,82 +82,104 @@ func New(mods ...Modifer) llmite.LLM {
 	}
 
 	if c.client == nil {
-		ac := anthropic.NewClient(c.options...)
-		c.client = &ac
+		c.client = llmite.NewHTTPClient(llmite.HTTPClientOptions{})
+	}
+
+	if c.token == "" {
+		if t := os.Getenv("ANTHROPIC_API_KEY"); t != "" {
+			c.token = t
+		} else if t := os.Getenv("ANTHROPIC_AUTH_TOKEN"); t != "" {
+			c.token = t
+		}
 	}
 
 	return c
 }
 
-// GetClient returns the underlying anthropic client.
-func (a *Client) GetClient() *anthropic.Client {
-	return a.client
-}
-
 func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
-	system, anthMessages, err := convertMessages(messages)
+	system, requestMessages, err := convertMessages(messages)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("anthropic: failed to convert messages: %w", err)
 	}
 
 	tools, err := convertTools(a.Tools)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("anthropic: failed to convert tools: %w", err)
 	}
 
-	body := anthropic.MessageNewParams{
+	requestBody := CreateMessageRequest{
+		Model:     a.Model,
 		MaxTokens: a.MaxTokens,
-		Model:     anthropic.Model(a.Model),
-		Messages:  anthMessages,
-		System:    system,
-		Tools:     tools,
+		TopP:      a.TopP,
+		TopK:      a.TopK,
+		Messages:  requestMessages,
 	}
 
-	if a.Temperature != nil {
-		body.Temperature = param.NewOpt(*a.Temperature)
+	if len(system) > 0 {
+		requestBody.System = system
 	}
 
-	anthResponse, err := a.client.Messages.New(
-		ctx,
-		body,
-	)
+	if len(tools) > 0 {
+		requestBody.Tools = tools
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("anthropic: failed to generate message: %w", err)
+		return nil, fmt.Errorf("anthropic: failed to marshal request body: %w", err)
 	}
 
-	msgOut := llmite.Message{
-		Role:  llmite.RoleAssistant,
-		Parts: []llmite.Part{},
+	bodyBuffer := io.NopCloser(bytes.NewReader(bodyBytes))
+
+	request, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bodyBuffer)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to create request: %w", err)
 	}
 
-	errs := make([]error, 0)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("anthropic-version", Version)
+	request.Header.Set("x-api-key", a.token)
 
-	for i, block := range anthResponse.Content {
-		switch block.Type {
-		case "text":
-			msgOut.Parts = append(msgOut.Parts, llmite.TextPart{
-				Text: block.Text,
-			})
-		case "tool_use":
-			msgOut.Parts = append(msgOut.Parts, llmite.ToolCallPart{
-				ID:    block.ToolUseID,
-				Name:  block.Name,
-				Input: block.Input,
+	response, err := a.client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: request failed: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		b, _ := io.ReadAll(response.Body)
+		return nil, fmt.Errorf("anthropic: request failed with status %d: %s", response.StatusCode, string(b))
+	}
+
+	var responseBody CreateMessageResponse
+	if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
+		return nil, fmt.Errorf("anthropic: failed to decode response body: %w", err)
+	}
+
+	parts := make([]llmite.Part, 0, len(responseBody.Content))
+
+	for _, block := range responseBody.Content {
+		switch b := block.(type) {
+		case ResponseTextBlock:
+			parts = append(parts, llmite.TextPart{Text: b.Text})
+		case ResponseToolUseBlock:
+			parts = append(parts, llmite.ToolCallPart{
+				ID:    b.ID,
+				Name:  b.Name,
+				Input: b.Input, // Anthropic does not return input in response
 			})
 		default:
-			errs = append(errs, fmt.Errorf("anthropic: unsupported content block type at index %d: %v", i, block))
+			return nil, fmt.Errorf("anthropic: unsupported response content block type: %T", b)
 		}
 	}
-
 	out := &llmite.Response{
-		ID:       anthResponse.ID,
-		Message:  msgOut,
+		ID: responseBody.ID,
+		Message: llmite.Message{
+			Role:  llmite.RoleAssistant,
+			Parts: parts,
+		},
 		Provider: ProviderAnthropic,
-		Raw:      anthResponse,
-	}
-
-	if len(errs) > 0 {
-		return out, errors.Join(errs...)
+		Raw:      responseBody,
 	}
 
 	return out, nil
@@ -167,104 +189,99 @@ func (a *Client) GenerateStream(ctx context.Context, messages []llmite.Message, 
 	return nil, fmt.Errorf("anthropic: streaming is not supported")
 }
 
-func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []anthropic.MessageParam, error) {
-	system := []anthropic.TextBlockParam{}
-	out := make([]anthropic.MessageParam, 0, len(messages))
+func convertMessages(messages []llmite.Message) (SystemPrompt, []InputMessage, error) {
+	system := make(SystemPrompt, 0)
+	out := make([]InputMessage, 0, len(messages))
 
-	for i, message := range messages {
-		// If the message is a system message, we need to convert it to a
-		// system prompt. We do this by appending the message parts to the
-		// system TextBlockParams.
-		if message.Role == llmite.RoleSystem {
-			for _, part := range message.Parts {
+	for _, msg := range messages {
+		if msg.Role == llmite.RoleSystem {
+			for _, part := range msg.Parts {
 				switch p := part.(type) {
 				case llmite.TextPart:
-					system = append(system, anthropic.TextBlockParam{
+					block := RequestTextBlock{
 						Text: p.Text,
-					})
+					}
+					system = append(system, block)
 				default:
-					return system, nil, fmt.Errorf("[message %d] anthropic: unsupported message part type: %T", i, p)
+					return nil, nil, fmt.Errorf("anthropic: unsupported system message part type: %T", p)
 				}
 			}
-
 			continue
 		}
-
-		// Convert the role
-		anthMessage := anthropic.MessageParam{}
-		switch message.Role {
-		case llmite.RoleUser:
-			anthMessage.Role = anthropic.MessageParamRoleUser
-		case llmite.RoleAssistant:
-			anthMessage.Role = anthropic.MessageParamRoleAssistant
-		default:
-			return system, nil, fmt.Errorf("[message %d] anthropic: unsupported message role: %s", i, message.Role)
+		inputMsg := InputMessage{
+			Content: make([]ContentBlock, 0, len(msg.Parts)),
 		}
 
-		// Convert the message parts
-		anthMessage.Content = []anthropic.ContentBlockParamUnion{}
-		for j, part := range message.Parts {
+		switch msg.Role {
+		case llmite.RoleUser:
+			inputMsg.Role = "user"
+		case llmite.RoleAssistant:
+			inputMsg.Role = "assistant"
+		default:
+			return nil, nil, fmt.Errorf("anthropic: unsupported message role: %s", msg.Role)
+		}
+
+		for _, part := range msg.Parts {
 			switch p := part.(type) {
 			case llmite.TextPart:
-				anthMessage.Content = append(anthMessage.Content, anthropic.ContentBlockParamUnion{
-					OfText: &anthropic.TextBlockParam{
-						Text: p.Text,
-					},
-				})
+				block := RequestTextBlock{
+					Text: p.Text,
+				}
+				inputMsg.Content = append(inputMsg.Content, block)
 			case llmite.ToolCallPart:
-				anthMessage.Content = append(anthMessage.Content, anthropic.ContentBlockParamUnion{
-					OfToolUse: &anthropic.ToolUseBlockParam{
-						ID:    p.ID,
-						Name:  p.Name,
-						Input: p.Input,
-					},
-				})
+				block := RequestToolUseBlock{
+					ID:   p.ID,
+					Name: p.Name,
+					// Input: p.Input,
+				}
+				inputMsg.Content = append(inputMsg.Content, block)
 			case llmite.ToolResultPart:
-				c := anthropic.ContentBlockParamUnion{
-					OfToolResult: &anthropic.ToolResultBlockParam{
-						ToolUseID: p.ToolCallID,
-						Content: []anthropic.ToolResultBlockParamContentUnion{
-							{
-								OfText: &anthropic.TextBlockParam{
-									Text: p.Result,
-								},
-							},
-						},
-					},
+				block := RequestToolResultBlock{
+					ToolUseID: p.ToolCallID,
+					// Content: []RequestToolResultContentBlock{
+					// 	{Text: p.Result},
+					// },
 				}
-
-				if p.Error != nil {
-					c.OfToolResult.IsError = param.NewOpt(true)
-				}
-
-				anthMessage.Content = append(anthMessage.Content, c)
+				inputMsg.Content = append(inputMsg.Content, block)
 			default:
-				return system, nil, fmt.Errorf("[message %d, part %d] anthropic: unsupported message part type: %T", i, j, p)
+				return nil, nil, fmt.Errorf("anthropic: unsupported message part type: %T", p)
 			}
 		}
 
-		out = append(out, anthMessage)
+		out = append(out, inputMsg)
 	}
 
 	return system, out, nil
 }
 
-func convertTools(tools []llmite.Tool) ([]anthropic.ToolUnionParam, error) {
-	out := make([]anthropic.ToolUnionParam, 0, len(tools))
+func convertTools(tools []llmite.Tool) ([]Tool, error) {
+	out := make([]Tool, 0, len(tools))
 
 	for _, tool := range tools {
-		anthTool := anthropic.ToolUnionParam{
-			OfTool: &anthropic.ToolParam{
-				Name:        tool.Name(),
-				Description: param.NewOpt(tool.Description()),
-			},
+		anthTool := Tool{
+			Name: tool.Name(),
+		}
+
+		if desc := tool.Description(); desc != "" {
+			anthTool.Description = &desc
 		}
 
 		schema := tool.Schema()
+		if schema != nil {
+			properties, ok := schema["properties"].(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("anthropic: tool schema 'properties' is not a map[string]interface{}")
+			}
 
-		anthTool.OfTool.InputSchema = anthropic.ToolInputSchemaParam{
-			Properties: schema.Properties,
-			Required:   schema.Required,
+			required, ok := schema["required"].([]string)
+			if !ok {
+				required = []string{}
+			}
+
+			anthTool.InputSchema = InputSchema{
+				Properties: properties,
+				Required:   required,
+			}
 		}
 
 		out = append(out, anthTool)

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/invopop/jsonschema"
-
 	"github.com/jpoz/llmite"
 )
 
@@ -27,8 +25,19 @@ type BoopToolParams struct {
 	BoopString string `json:"boops" jsonschema:"title=Boop String,description=The string containing the boops"`
 }
 
-func (t *BoopTool) Schema() *jsonschema.Schema {
-	return llmite.GenerateSchema[BoopToolParams]()
+func (t *BoopTool) Schema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"boops": map[string]any{
+				"type":        "string",
+				"title":       "Boop String",
+				"description": "The string containing the boops",
+			},
+		},
+		"required":             []string{"boops"},
+		"additionalProperties": false,
+	}
 }
 
 func (t *BoopTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
@@ -62,8 +71,19 @@ type WeatherToolParams struct {
 	Location string `json:"location" jsonschema:"title=Location,description=The location to get weather for"`
 }
 
-func (t WeatherTool) Schema() *jsonschema.Schema {
-	return llmite.GenerateSchema[WeatherToolParams]()
+func (t WeatherTool) Schema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"location": map[string]any{
+				"type":        "string",
+				"title":       "Location",
+				"description": "The location to get weather for",
+			},
+		},
+		"required":             []string{"location"},
+		"additionalProperties": false,
+	}
 }
 
 func (t WeatherTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
@@ -97,8 +117,19 @@ type CalculatorToolParams struct {
 	Expression string `json:"expression" jsonschema:"title=Expression,description=The mathematical expression to calculate"`
 }
 
-func (t CalculatorTool) Schema() *jsonschema.Schema {
-	return llmite.GenerateSchema[CalculatorToolParams]()
+func (t CalculatorTool) Schema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"expression": map[string]any{
+				"type":        "string",
+				"title":       "Expression",
+				"description": "The mathematical expression to calculate",
+			},
+		},
+		"required":             []string{"expression"},
+		"additionalProperties": false,
+	}
 }
 
 func (t CalculatorTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
@@ -116,4 +147,3 @@ func (t CalculatorTool) Execute(ctx context.Context, args []byte) *llmite.ToolRe
 		Content: `Result: 42`, // Simplified for testing
 	}
 }
-

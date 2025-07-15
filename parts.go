@@ -1,5 +1,7 @@
 package llmite // convertMessages converts the internal message format to the format
 
+import "encoding/json"
+
 type TextPart struct {
 	Text string `json:"text"`
 }
@@ -7,9 +9,9 @@ type TextPart struct {
 func (TextPart) isPart() {}
 
 type ToolCallPart struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Input []byte `json:"arguments"`
+	ID    string          `json:"id"`
+	Name  string          `json:"name"`
+	Input json.RawMessage `json:"arguments"`
 }
 
 func (ToolCallPart) isPart() {}
