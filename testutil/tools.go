@@ -47,3 +47,73 @@ func (t *BoopTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult 
 	}
 }
 
+// WeatherTool is a simple weather tool for testing
+type WeatherTool struct{}
+
+func (t WeatherTool) Name() string {
+	return "get_weather"
+}
+
+func (t WeatherTool) Description() string {
+	return "Get the current weather for a location"
+}
+
+type WeatherToolParams struct {
+	Location string `json:"location" jsonschema:"title=Location,description=The location to get weather for"`
+}
+
+func (t WeatherTool) Schema() *jsonschema.Schema {
+	return llmite.GenerateSchema[WeatherToolParams]()
+}
+
+func (t WeatherTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
+	var params WeatherToolParams
+	err := json.Unmarshal(args, &params)
+	if err != nil {
+		return &llmite.ToolResult{
+			ID:    "weather",
+			Error: err,
+		}
+	}
+
+	return &llmite.ToolResult{
+		ID:      "weather",
+		Content: `The weather in ` + params.Location + ` is sunny, 72°F`,
+	}
+}
+
+// CalculatorTool is a simple calculator tool for testing
+type CalculatorTool struct{}
+
+func (t CalculatorTool) Name() string {
+	return "calculate"
+}
+
+func (t CalculatorTool) Description() string {
+	return "Perform basic arithmetic calculations"
+}
+
+type CalculatorToolParams struct {
+	Expression string `json:"expression" jsonschema:"title=Expression,description=The mathematical expression to calculate"`
+}
+
+func (t CalculatorTool) Schema() *jsonschema.Schema {
+	return llmite.GenerateSchema[CalculatorToolParams]()
+}
+
+func (t CalculatorTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
+	var params CalculatorToolParams
+	err := json.Unmarshal(args, &params)
+	if err != nil {
+		return &llmite.ToolResult{
+			ID:    "calculator",
+			Error: err,
+		}
+	}
+
+	return &llmite.ToolResult{
+		ID:      "calculator",
+		Content: `Result: 42`, // Simplified for testing
+	}
+}
+

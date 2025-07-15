@@ -7,7 +7,7 @@ llmite is a Go library that provides a unified interface for working with Large 
 ## Features
 
 - **Unified Interface**: Single API for multiple LLM providers
-- **Provider Support**: Anthropic Claude and Google Gemini
+- **Provider Support**: Anthropic Claude, Google Gemini, and OpenAI
 - **Tool Calling**: Built-in support for function calling across providers
 - **Streaming**: Real-time response streaming (provider-dependent)
 - **HTTP Logging**: Comprehensive request/response logging for debugging
@@ -60,6 +60,52 @@ func main() {
 }
 ```
 
+### Basic Usage with OpenAI
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    "github.com/jpoz/llmite"
+    "github.com/jpoz/llmite/openai"
+)
+
+func main() {
+    // Create OpenAI client
+    client := openai.New(
+        openai.WithModel("gpt-4o-mini"),
+        openai.WithMaxTokens(100),
+    )
+    
+    // Create messages
+    messages := []llmite.Message{
+        {
+            Role: llmite.RoleUser,
+            Parts: []llmite.Part{
+                llmite.TextPart{Text: "What is the capital of France?"},
+            },
+        },
+    }
+    
+    // Generate response
+    response, err := client.Generate(context.Background(), messages)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    for _, part := range response.Message.Parts {
+        if textPart, ok := part.(llmite.TextPart); ok {
+            fmt.Println(textPart.Text)
+        }
+    }
+}
+```
+
 ### Basic Usage with Google Gemini
 
 ```go
@@ -77,18 +123,19 @@ import (
 
 func main() {
     // Create Gemini client
-    client, err := gemini.NewClient(context.Background(), os.Getenv("GEMINI_API_KEY"))
+    client, err := gemini.New(
+        gemini.WithApiKey(os.Getenv("GEMINI_API_KEY")),
+    )
     if err != nil {
         log.Fatal(err)
     }
-    defer client.Close()
     
     // Create messages
     messages := []llmite.Message{
         {
             Role: llmite.RoleUser,
             Parts: []llmite.Part{
-                {Type: llmite.PartTypeText, Text: "Explain quantum computing in simple terms"},
+                llmite.TextPart{Text: "Explain quantum computing in simple terms"},
             },
         },
     }
@@ -99,7 +146,11 @@ func main() {
         log.Fatal(err)
     }
     
-    fmt.Println(response.Message.Parts[0].Text)
+    for _, part := range response.Message.Parts {
+        if textPart, ok := part.(llmite.TextPart); ok {
+            fmt.Println(textPart.Text)
+        }
+    }
 }
 ```
 
@@ -115,31 +166,38 @@ import (
     "os"
 
     "github.com/jpoz/llmite"
-    "github.com/jpoz/llmite/gemini"
+    "github.com/jpoz/llmite/openai"
 )
 
 func main() {
-    client, err := gemini.NewClient(context.Background(), os.Getenv("GEMINI_API_KEY"))
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer client.Close()
+    client := openai.New(
+        openai.WithModel("gpt-4o-mini"),
+    )
     
     messages := []llmite.Message{
         {
             Role: llmite.RoleUser,
             Parts: []llmite.Part{
-                {Type: llmite.PartTypeText, Text: "Write a short story about a robot"},
+                llmite.TextPart{Text: "Write a short story about a robot"},
             },
         },
     }
     
     // Stream response
-    _, err = client.GenerateStream(context.Background(), messages, func(part llmite.Part) error {
-        if part.Type == llmite.PartTypeText {
-            fmt.Print(part.Text)
+    _, err := client.GenerateStream(context.Background(), messages, func(response *llmite.Response, err error) bool {
+        if err != nil {
+            log.Printf("Streaming error: %v", err)
+            return false
         }
-        return nil
+        
+        // Process each part in the response
+        for _, part := range response.Message.Parts {
+            if textPart, ok := part.(llmite.TextPart); ok {
+                fmt.Print(textPart.Text)
+            }
+        }
+        
+        return true // Continue streaming
     })
     if err != nil {
         log.Fatal(err)
@@ -270,6 +328,9 @@ func main() {
 - `ANTHROPIC_AUTH_TOKEN` - Alternative auth token
 - `ANTHROPIC_BASE_URL` - Custom base URL (optional)
 
+**OpenAI:**
+- `OPENAI_API_KEY` - Your OpenAI API key
+
 **Google Gemini:**
 - `GEMINI_API_KEY` or `GOOGLE_API_KEY` - Your Google API key
 - `GOOGLE_GENAI_USE_VERTEXAI` - Set to "true" to use Vertex AI
@@ -278,13 +339,15 @@ func main() {
 
 ## Provider Capabilities
 
-| Feature | Anthropic Claude | Google Gemini |
-|---------|------------------|---------------|
-| Text Generation | ✅ | ✅ |
-| Streaming | ❌ | ✅ |
-| Tool Calling | ✅ | ✅ |
-| System Messages | ✅ | ✅ |
-| HTTP Logging | ✅ | ✅ |
+| Feature | Anthropic Claude | Google Gemini | OpenAI |
+|---------|------------------|---------------|--------|
+| Text Generation | ✅ | ✅ | ✅ |
+| Streaming | ❌ | ✅ | ✅ |
+| Tool Calling | ✅ | ✅ | 🚧* |
+| System Messages | ✅ | ✅ | ✅ |
+| HTTP Logging | ✅ | ✅ | ✅ |
+
+*🚧 = Partially implemented or in progress
 
 ## Contributing
 

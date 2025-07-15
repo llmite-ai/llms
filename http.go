@@ -9,6 +9,51 @@ import (
 	"time"
 )
 
+type HTTPClientOptions struct {
+	// LogRequests indicates whether to log HTTP requests.
+	LogRequests bool
+	// Logger is the logger to use for logging HTTP requests and responses.
+	Logger *slog.Logger
+	// Config is the configuration for logging HTTP requests and responses.
+	Config *LoggingConfig
+}
+
+// NewHTTPClient creates an http.Client with the provided options
+func NewHTTPClient(options HTTPClientOptions) *http.Client {
+	if options.LogRequests == false && options.Logger == nil {
+		return http.DefaultClient
+	}
+
+	if options.Logger == nil {
+		options.Logger = slog.Default()
+	}
+	if options.Config == nil {
+		options.Config = &LoggingConfig{
+			LogHeaders:      true,
+			LogRequestBody:  true,
+			LogResponseBody: true,
+			MaxBodySize:     1024, // Default 1KB max body logging
+		}
+	}
+	return &http.Client{
+		Transport: NewLoggingRoundTripper(http.DefaultTransport, options.Logger, *options.Config),
+	}
+}
+
+// NewHTTPClientWithLogging creates an http.Client with logging transport
+func NewHTTPClientWithLogging(logger *slog.Logger, config LoggingConfig) *http.Client {
+	return &http.Client{
+		Transport: NewLoggingRoundTripper(nil, logger, config),
+	}
+}
+
+// NewDefaultHTTPClientWithLogging creates an http.Client with default logging configuration
+func NewDefaultHTTPClientWithLogging() *http.Client {
+	return &http.Client{
+		Transport: NewDefaultLoggingRoundTripper(),
+	}
+}
+
 // LoggingRoundTripper implements http.RoundTripper with logging
 type LoggingRoundTripper struct {
 	transport http.RoundTripper
@@ -207,18 +252,4 @@ func (t *LoggingRoundTripper) captureResponseBody(body io.ReadCloser, maxSize in
 	newBody := io.NopCloser(bytes.NewReader(bodyBytes))
 
 	return logBytes, newBody, nil
-}
-
-// NewHTTPClientWithLogging creates an http.Client with logging transport
-func NewHTTPClientWithLogging(logger *slog.Logger, config LoggingConfig) *http.Client {
-	return &http.Client{
-		Transport: NewLoggingRoundTripper(nil, logger, config),
-	}
-}
-
-// NewDefaultHTTPClientWithLogging creates an http.Client with default logging configuration
-func NewDefaultHTTPClientWithLogging() *http.Client {
-	return &http.Client{
-		Transport: NewDefaultLoggingRoundTripper(),
-	}
 }
