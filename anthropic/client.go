@@ -94,7 +94,7 @@ func (a *Client) GetClient() *anthropic.Client {
 	return a.client
 }
 
-func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
+func (a *Client) BuildRequest(ctx context.Context, messages []llmite.Message) (*anthropic.MessageNewParams, error) {
 	system, anthMessages, err := convertMessages(messages)
 	if err != nil {
 		return nil, err
@@ -117,14 +117,72 @@ func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 		body.Temperature = param.NewOpt(*a.Temperature)
 	}
 
-	anthResponse, err := a.client.Messages.New(
+	return &body, nil
+}
+
+func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
+	body, err := a.BuildRequest(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to build request: %w", err)
+	}
+
+	msg, err := a.client.Messages.New(
 		ctx,
-		body,
+		*body,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: failed to generate message: %w", err)
 	}
 
+	return convertMessageToResponse(msg)
+}
+
+func (a *Client) GenerateStream(ctx context.Context, messages []llmite.Message, fn llmite.StreamFunc) (*llmite.Response, error) {
+	body, err := a.BuildRequest(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: failed to build request: %w", err)
+	}
+
+	stream := a.client.Messages.NewStreaming(
+		ctx,
+		*body,
+	)
+	if stream == nil {
+		return nil, fmt.Errorf("anthropic: failed to create streaming request")
+	}
+
+	message := &anthropic.Message{}
+	for stream.Next() {
+		event := stream.Current()
+		err := message.Accumulate(event)
+		if err != nil {
+			if !fn(nil, fmt.Errorf("anthropic: failed to accumulate message: %w", err)) {
+				return nil, fmt.Errorf("anthropic: failed to accumulate message: %w", err)
+			}
+			continue
+		}
+
+		response, err := convertMessageToResponse(message)
+		if err != nil {
+			if !fn(nil, fmt.Errorf("anthropic: failed to convert message to response: %w", err)) {
+				return nil, fmt.Errorf("anthropic: failed to convert message to response: %w", err)
+			}
+			continue
+		}
+
+		if !fn(response, nil) {
+			return response, nil
+		}
+	}
+
+	if stream.Err() != nil {
+		return nil, fmt.Errorf("anthropic: streaming request failed: %w", stream.Err())
+	}
+
+	return convertMessageToResponse(message)
+}
+
+func convertMessageToResponse(msg *anthropic.Message) (*llmite.Response, error) {
 	msgOut := llmite.Message{
 		Role:  llmite.RoleAssistant,
 		Parts: []llmite.Part{},
@@ -132,7 +190,7 @@ func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 
 	errs := make([]error, 0)
 
-	for i, block := range anthResponse.Content {
+	for i, block := range msg.Content {
 		switch block.Type {
 		case "text":
 			msgOut.Parts = append(msgOut.Parts, llmite.TextPart{
@@ -150,10 +208,10 @@ func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 	}
 
 	out := &llmite.Response{
-		ID:       anthResponse.ID,
+		ID:       msg.ID,
 		Message:  msgOut,
 		Provider: ProviderAnthropic,
-		Raw:      anthResponse,
+		Raw:      msg,
 	}
 
 	if len(errs) > 0 {
@@ -161,10 +219,6 @@ func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 	}
 
 	return out, nil
-}
-
-func (a *Client) GenerateStream(ctx context.Context, messages []llmite.Message, fn llmite.StreamFunc) (*llmite.Response, error) {
-	return nil, fmt.Errorf("anthropic: streaming is not supported")
 }
 
 func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []anthropic.MessageParam, error) {
