@@ -3,8 +3,8 @@ package openai
 import (
 	"testing"
 
-	"github.com/jpoz/llmite"
-	"github.com/jpoz/llmite/testutil"
+	"github.com/llmite-ai/llms"
+	"github.com/llmite-ai/llms/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

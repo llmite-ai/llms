@@ -9,7 +9,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/param"
 
-	"github.com/jpoz/llmite"
+	"github.com/llmite-ai/llms"
 )
 
 const ProviderAnthropic = "anthropic"

@@ -8,7 +8,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/google/uuid"
-	"github.com/jpoz/llmite"
+	"github.com/llmite-ai/llms"
 )
 
 const ProviderGemini = "gemini"

@@ -6,7 +6,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 
-	"github.com/jpoz/llmite"
+	"github.com/llmite-ai/llms"
 )
 
 type BoopTool struct{}

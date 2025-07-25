@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/jpoz/llmite"
-	"github.com/jpoz/llmite/gemini"
-	"github.com/jpoz/llmite/testutil"
+	"github.com/llmite-ai/llms"
+	"github.com/llmite-ai/llms/gemini"
+	"github.com/llmite-ai/llms/testutil"
 )
 
 type GeminiTestSuite struct {

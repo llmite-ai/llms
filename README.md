@@ -1,8 +1,8 @@
-# llmite
+# llmite - llms
 
 **⚠️ This project is currently in beta. APIs may change.**
 
-llmite is a Go library that provides a unified interface for working with Large Language Models (LLMs) from different providers. It offers a consistent API that allows you to switch between providers like Anthropic Claude and Google Gemini without changing your application code.
+llmite llms is a Go library that provides a unified interface for working with Large Language Models (LLMs) from different providers. It offers a consistent API that allows you to switch between providers like Anthropic Claude and Google Gemini without changing your application code.
 
 ## Features
 

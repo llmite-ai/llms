@@ -8,7 +8,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 
-	"github.com/jpoz/llmite"
+	"github.com/llmite-ai/llms"
 )
 
 const ProviderOpenAI = "openai"

@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/jpoz/llmite"
-	"github.com/jpoz/llmite/openai"
+	"github.com/llmite-ai/llms"
+	"github.com/llmite-ai/llms/openai"
 )
 
 func ExampleClient_Generate() {

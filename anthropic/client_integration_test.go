@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/jpoz/llmite"
-	"github.com/jpoz/llmite/anthropic"
-	"github.com/jpoz/llmite/testutil"
+	"github.com/llmite-ai/llms"
+	"github.com/llmite-ai/llms/anthropic"
+	"github.com/llmite-ai/llms/testutil"
 )
 
 type AnthropicTestSuite struct {

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 
-	"github.com/jpoz/llmite"
+	"github.com/llmite-ai/llms"
 )
 
 func TestConvertMessages(t *testing.T) {

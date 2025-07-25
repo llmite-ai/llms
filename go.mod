@@ -1,4 +1,4 @@
-module github.com/jpoz/llmite
+module github.com/llmite-ai/llms
 
 go 1.23.2
 
@@ -6,6 +6,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.5.0
 	github.com/google/uuid v1.6.0
 	github.com/invopop/jsonschema v0.13.0
+	github.com/openai/openai-go v1.10.1
 	github.com/stretchr/testify v1.10.0
 	github.com/wk8/go-ordered-map/v2 v2.1.8
 	google.golang.org/genai v1.15.0
@@ -24,7 +25,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/openai/openai-go v1.10.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
