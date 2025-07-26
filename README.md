@@ -16,7 +16,7 @@ llmite llms is a Go library that provides a unified interface for working with L
 ## Installation
 
 ```bash
-go get github.com/jpoz/llmite
+go get github.com/llmite-ai/llms
 ```
 
 ## Quick Start
@@ -32,8 +32,8 @@ import (
     "log"
     "os"
 
-    "github.com/jpoz/llmite"
-    "github.com/jpoz/llmite/anthropic"
+    "github.com/llmite-ai/llms"
+    "github.com/llmite-ai/llms/anthropic"
 )
 
 func main() {
@@ -71,8 +71,8 @@ import (
     "log"
     "os"
 
-    "github.com/jpoz/llmite"
-    "github.com/jpoz/llmite/openai"
+    "github.com/llmite-ai/llms"
+    "github.com/llmite-ai/llms/openai"
 )
 
 func main() {
@@ -117,8 +117,8 @@ import (
     "log"
     "os"
 
-    "github.com/jpoz/llmite"
-    "github.com/jpoz/llmite/gemini"
+    "github.com/llmite-ai/llms"
+    "github.com/llmite-ai/llms/gemini"
 )
 
 func main() {
@@ -165,8 +165,8 @@ import (
     "log"
     "os"
 
-    "github.com/jpoz/llmite"
-    "github.com/jpoz/llmite/openai"
+    "github.com/llmite-ai/llms"
+    "github.com/llmite-ai/llms/openai"
 )
 
 func main() {
@@ -217,8 +217,8 @@ import (
     "os"
     "time"
 
-    "github.com/jpoz/llmite"
-    "github.com/jpoz/llmite/anthropic"
+    "github.com/llmite-ai/llms"
+    "github.com/llmite-ai/llms/anthropic"
 )
 
 // Define a simple tool
@@ -285,8 +285,8 @@ import (
     "log"
     "os"
 
-    "github.com/jpoz/llmite"
-    "github.com/jpoz/llmite/anthropic"
+    "github.com/llmite-ai/llms"
+    "github.com/llmite-ai/llms/anthropic"
 )
 
 func main() {
