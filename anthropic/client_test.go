@@ -303,7 +303,7 @@ func TestConvertTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := convertTools(tt.tools)
+			result, _, err := convertTools(tt.tools)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -356,7 +356,7 @@ func TestConvertTools_SchemaValidation(t *testing.T) {
 		},
 	}
 
-	result, err := convertTools([]llms.Tool{tool})
+	result, _, err := convertTools([]llms.Tool{tool})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 

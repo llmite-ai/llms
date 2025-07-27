@@ -1,6 +1,3 @@
-//go:build integration
-// +build integration
-
 package anthropic_test
 
 import (
@@ -20,8 +17,8 @@ type AnthropicTestSuite struct {
 	suite.Suite
 }
 
-// func (suite *AnthropicTestSuite) SetupTest() {
-// }
+func (suite *AnthropicTestSuite) SetupTest() {
+}
 
 func (suite *AnthropicTestSuite) TestGenerateBasic() {
 	suite.T().Parallel() // Enable parallel execution for this method
@@ -104,6 +101,43 @@ func (suite *AnthropicTestSuite) TestGenerateWithToolCalls() {
 	suite.True(hasToolPart, "response should have a tool call part")
 }
 
+func (suite *AnthropicTestSuite) TestGenerateWithAnthropicToolCalls() {
+	suite.T().Parallel() // Enable parallel execution for this method
+	ctx := context.Background()
+	client := anthropic.New(
+		anthropic.WithTools([]llms.Tool{
+			anthropic.CodeExecutionTool{},
+		}),
+		anthropic.WithHttpLogging(),
+	)
+
+	systemMsg := llms.NewTextMessage(llms.RoleSystem, "You are a helpful assistant. That executes code for the user.")
+	userMsg := llms.NewTextMessage(llms.RoleUser, "Using a code execution tool what is 1337*4,000,000?")
+
+	resp, err := client.Generate(ctx, []llms.Message{systemMsg, userMsg})
+	suite.Require().NoError(err)
+	suite.NotEmpty(resp.ID)
+	suite.Require().NotEmpty(resp.Message.Parts)
+
+	fmt.Printf("Response: %+v\n", resp)
+
+	hasCodeExecutionPart := false
+	hasServerUsePart := false
+
+	for _, part := range resp.Message.Parts {
+		switch p := part.(type) {
+		case anthropic.CodeExecutionToolResult:
+			hasCodeExecutionPart = true
+			suite.NotEmpty(p.Content, "code execution result should not be empty")
+		case anthropic.ServerToolUsePart:
+			hasServerUsePart = true
+		}
+	}
+
+	suite.True(hasCodeExecutionPart, "response should have a code execution part")
+	suite.True(hasServerUsePart, "response should have a server tool use part")
+}
+
 func (suite *AnthropicTestSuite) TestGenerateStreamBasic() {
 	suite.T().Parallel()
 	ctx := context.Background()
@@ -169,7 +203,7 @@ func (suite *AnthropicTestSuite) TestGenerateStreamSystemPrompt() {
 
 	textPart, ok := resp.Message.Parts[0].(llms.TextPart)
 	suite.True(ok)
-	
+
 	// Check that the final response contains numbers as expected from system prompt
 	suite.Regexp(`[0-9]`, textPart.Text, "response should contain numbers due to system prompt")
 }
@@ -260,7 +294,7 @@ func (suite *AnthropicTestSuite) TestGenerateStreamEarlyTermination() {
 func (suite *AnthropicTestSuite) TestGenerateStreamErrorHandling() {
 	suite.T().Parallel()
 	ctx := context.Background()
-	
+
 	// Create client with invalid model to potentially trigger errors
 	client := anthropic.New(
 		anthropic.WithModel("invalid-model-name"),
@@ -282,12 +316,12 @@ func (suite *AnthropicTestSuite) TestGenerateStreamErrorHandling() {
 
 	// Expect an error due to invalid model
 	suite.Error(err)
-	
+
 	// Stream function may or may not be called depending on when the error occurs
 	if streamCallCount > 0 {
 		suite.True(receivedError, "should have received error in stream function if it was called")
 	}
-	
+
 	// Response might be nil due to error
 	if resp != nil {
 		suite.Empty(resp.Message.Parts)

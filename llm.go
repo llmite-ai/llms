@@ -11,10 +11,6 @@ type LLM interface {
 	GenerateStream(ctx context.Context, messages []Message, fn StreamFunc) (*Response, error)
 }
 
-type Part interface {
-	isPart()
-}
-
 type Response struct {
 	ID      string  `json:"id"`
 	Message Message `json:"message"`

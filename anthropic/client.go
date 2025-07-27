@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -94,15 +95,15 @@ func (a *Client) GetClient() *anthropic.Client {
 	return a.client
 }
 
-func (a *Client) BuildRequest(ctx context.Context, messages []llms.Message) (*anthropic.MessageNewParams, error) {
+func (a *Client) BuildRequest(ctx context.Context, messages []llms.Message) (*anthropic.MessageNewParams, []option.RequestOption, error) {
 	system, anthMessages, err := convertMessages(messages)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	tools, err := convertTools(a.Tools)
+	tools, opts, err := convertTools(a.Tools)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	body := anthropic.MessageNewParams{
@@ -117,11 +118,11 @@ func (a *Client) BuildRequest(ctx context.Context, messages []llms.Message) (*an
 		body.Temperature = param.NewOpt(*a.Temperature)
 	}
 
-	return &body, nil
+	return &body, opts, nil
 }
 
 func (a *Client) Generate(ctx context.Context, messages []llms.Message) (*llms.Response, error) {
-	body, err := a.BuildRequest(ctx, messages)
+	body, opts, err := a.BuildRequest(ctx, messages)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: failed to build request: %w", err)
 	}
@@ -129,6 +130,7 @@ func (a *Client) Generate(ctx context.Context, messages []llms.Message) (*llms.R
 	msg, err := a.client.Messages.New(
 		ctx,
 		*body,
+		opts...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: failed to generate message: %w", err)
@@ -138,7 +140,7 @@ func (a *Client) Generate(ctx context.Context, messages []llms.Message) (*llms.R
 }
 
 func (a *Client) GenerateStream(ctx context.Context, messages []llms.Message, fn llms.StreamFunc) (*llms.Response, error) {
-	body, err := a.BuildRequest(ctx, messages)
+	body, opts, err := a.BuildRequest(ctx, messages)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: failed to build request: %w", err)
 	}
@@ -146,6 +148,7 @@ func (a *Client) GenerateStream(ctx context.Context, messages []llms.Message, fn
 	stream := a.client.Messages.NewStreaming(
 		ctx,
 		*body,
+		opts...,
 	)
 	if stream == nil {
 		return nil, fmt.Errorf("anthropic: failed to create streaming request")
@@ -202,8 +205,29 @@ func convertMessageToResponse(msg *anthropic.Message) (*llms.Response, error) {
 				Name:  block.Name,
 				Input: block.Input,
 			})
+		case "code_execution_tool_result":
+			contentJSON := block.JSON.Content.Raw()
+
+			var content CodeExecutionResult
+
+			err := json.Unmarshal([]byte(contentJSON), &content)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("anthropic: failed to unmarshal code execution result at index %d: %w", i, err))
+				continue
+			}
+
+			msgOut.Parts = append(msgOut.Parts, CodeExecutionToolResult{
+				ToolUseID: block.ToolUseID,
+				Content:   content,
+			})
+		case "server_tool_use":
+			msgOut.Parts = append(msgOut.Parts, ServerToolUsePart{
+				ID:    block.ID,
+				Name:  block.Name,
+				Input: block.Input,
+			})
 		default:
-			errs = append(errs, fmt.Errorf("anthropic: unsupported content block type at index %d: %v", i, block))
+			errs = append(errs, fmt.Errorf("anthropic: unsupported content block type at index %d: %#v", i, block))
 		}
 	}
 
@@ -303,26 +327,49 @@ func convertMessages(messages []llms.Message) ([]anthropic.TextBlockParam, []ant
 	return system, out, nil
 }
 
-func convertTools(tools []llms.Tool) ([]anthropic.ToolUnionParam, error) {
+func convertTools(tools []llms.Tool) (
+	[]anthropic.ToolUnionParam,
+	[]option.RequestOption,
+	error,
+) {
 	out := make([]anthropic.ToolUnionParam, 0, len(tools))
+	opts := []option.RequestOption{}
 
 	for _, tool := range tools {
-		anthTool := anthropic.ToolUnionParam{
-			OfTool: &anthropic.ToolParam{
-				Name:        tool.Name(),
-				Description: param.NewOpt(tool.Description()),
-			},
+		switch t := tool.(type) {
+		case BashTool:
+			anthTool := anthropic.ToolUnionParam{
+				OfBashTool20250124: &anthropic.ToolBash20250124Param{},
+			}
+			out = append(out, anthTool)
+
+		case CodeExecutionTool:
+			anthTool := anthropic.ToolUnionParam{
+				OfTool: &anthropic.ToolParam{
+					Name: "code_execution",
+					Type: "code_execution_20250522",
+				},
+			}
+			out = append(out, anthTool)
+			opts = append(opts, option.WithMiddleware(t.Middleware()))
+		default:
+			anthTool := anthropic.ToolUnionParam{
+				OfTool: &anthropic.ToolParam{
+					Name:        tool.Name(),
+					Description: param.NewOpt(tool.Description()),
+				},
+			}
+
+			schema := tool.Schema()
+
+			anthTool.OfTool.InputSchema = anthropic.ToolInputSchemaParam{
+				Properties: schema.Properties,
+				Required:   schema.Required,
+			}
+
+			out = append(out, anthTool)
 		}
-
-		schema := tool.Schema()
-
-		anthTool.OfTool.InputSchema = anthropic.ToolInputSchemaParam{
-			Properties: schema.Properties,
-			Required:   schema.Required,
-		}
-
-		out = append(out, anthTool)
 	}
 
-	return out, nil
+	return out, opts, nil
 }
