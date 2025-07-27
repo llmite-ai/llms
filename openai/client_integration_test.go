@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package openai
 
 import (
@@ -21,11 +24,11 @@ func TestOpenAIClientIntegration(t *testing.T) {
 	client := New(WithModel("gpt-4o-mini"))
 
 	t.Run("simple generation", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleUser,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "What is the capital of France?"},
+				Role: llms.RoleUser,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "What is the capital of France?"},
 				},
 			},
 		}
@@ -35,13 +38,13 @@ func TestOpenAIClientIntegration(t *testing.T) {
 		assert.NotNil(t, response)
 		assert.NotEmpty(t, response.ID)
 		assert.Equal(t, ProviderOpenAI, response.Provider)
-		assert.Equal(t, llmite.RoleAssistant, response.Message.Role)
+		assert.Equal(t, llms.RoleAssistant, response.Message.Role)
 		assert.NotEmpty(t, response.Message.Parts)
 
 		// Check that we got a text response
 		hasText := false
 		for _, part := range response.Message.Parts {
-			if textPart, ok := part.(llmite.TextPart); ok {
+			if textPart, ok := part.(llms.TextPart); ok {
 				hasText = true
 				assert.Contains(t, textPart.Text, "Paris")
 			}
@@ -50,17 +53,17 @@ func TestOpenAIClientIntegration(t *testing.T) {
 	})
 
 	t.Run("system message", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleSystem,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "You are a helpful assistant that always responds in exactly 5 words."},
+				Role: llms.RoleSystem,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "You are a helpful assistant that always responds in exactly 5 words."},
 				},
 			},
 			{
-				Role: llmite.RoleUser,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "What is the capital of France?"},
+				Role: llms.RoleUser,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "What is the capital of France?"},
 				},
 			},
 		}
@@ -72,7 +75,7 @@ func TestOpenAIClientIntegration(t *testing.T) {
 		// Check that we got a short response
 		hasText := false
 		for _, part := range response.Message.Parts {
-			if textPart, ok := part.(llmite.TextPart); ok {
+			if textPart, ok := part.(llms.TextPart); ok {
 				hasText = true
 				assert.NotEmpty(t, textPart.Text)
 			}
@@ -81,17 +84,17 @@ func TestOpenAIClientIntegration(t *testing.T) {
 	})
 
 	t.Run("streaming", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleUser,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "Count from 1 to 5"},
+				Role: llms.RoleUser,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "Count from 1 to 5"},
 				},
 			},
 		}
 
-		var streamedResponses []*llmite.Response
-		response, err := client.GenerateStream(context.Background(), messages, func(resp *llmite.Response, err error) bool {
+		var streamedResponses []*llms.Response
+		response, err := client.GenerateStream(context.Background(), messages, func(resp *llms.Response, err error) bool {
 			if err != nil {
 				return false
 			}
@@ -109,7 +112,7 @@ func TestOpenAIClientIntegration(t *testing.T) {
 		// Check that the final response contains the content
 		hasText := false
 		for _, part := range response.Message.Parts {
-			if _, ok := part.(llmite.TextPart); ok {
+			if _, ok := part.(llms.TextPart); ok {
 				hasText = true
 			}
 		}
@@ -117,7 +120,7 @@ func TestOpenAIClientIntegration(t *testing.T) {
 	})
 
 	t.Run("tool calling", func(t *testing.T) {
-		tools := []llmite.Tool{
+		tools := []llms.Tool{
 			testutil.WeatherTool{},
 		}
 
@@ -126,11 +129,11 @@ func TestOpenAIClientIntegration(t *testing.T) {
 			WithTools(tools),
 		)
 
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleUser,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "What's the weather like in San Francisco?"},
+				Role: llms.RoleUser,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "What's the weather like in San Francisco?"},
 				},
 			},
 		}
@@ -142,7 +145,7 @@ func TestOpenAIClientIntegration(t *testing.T) {
 		// Check if we got a tool call
 		hasToolCall := false
 		for _, part := range response.Message.Parts {
-			if toolCallPart, ok := part.(llmite.ToolCallPart); ok {
+			if toolCallPart, ok := part.(llms.ToolCallPart); ok {
 				hasToolCall = true
 				assert.Equal(t, "get_weather", toolCallPart.Name)
 				assert.NotEmpty(t, toolCallPart.ID)
@@ -156,7 +159,7 @@ func TestOpenAIClientIntegration(t *testing.T) {
 	})
 
 	t.Run("conversation with tool result", func(t *testing.T) {
-		tools := []llmite.Tool{
+		tools := []llms.Tool{
 			testutil.WeatherTool{},
 		}
 
@@ -165,17 +168,17 @@ func TestOpenAIClientIntegration(t *testing.T) {
 			WithTools(tools),
 		)
 
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleUser,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "What's the weather like in San Francisco?"},
+				Role: llms.RoleUser,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "What's the weather like in San Francisco?"},
 				},
 			},
 			{
-				Role: llmite.RoleAssistant,
-				Parts: []llmite.Part{
-					llmite.ToolCallPart{
+				Role: llms.RoleAssistant,
+				Parts: []llms.Part{
+					llms.ToolCallPart{
 						ID:    "call_123",
 						Name:  "get_weather",
 						Input: []byte(`{"location": "San Francisco"}`),
@@ -183,9 +186,9 @@ func TestOpenAIClientIntegration(t *testing.T) {
 				},
 			},
 			{
-				Role: llmite.RoleAssistant,
-				Parts: []llmite.Part{
-					llmite.ToolResultPart{
+				Role: llms.RoleAssistant,
+				Parts: []llms.Part{
+					llms.ToolResultPart{
 						ToolCallID: "call_123",
 						Name:       "get_weather",
 						Result:     "The weather in San Francisco is sunny, 72°F",
@@ -193,9 +196,9 @@ func TestOpenAIClientIntegration(t *testing.T) {
 				},
 			},
 			{
-				Role: llmite.RoleUser,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "Is that good weather for a picnic?"},
+				Role: llms.RoleUser,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "Is that good weather for a picnic?"},
 				},
 			},
 		}
@@ -207,7 +210,7 @@ func TestOpenAIClientIntegration(t *testing.T) {
 		// Should get a text response about the weather being good for a picnic
 		hasText := false
 		for _, part := range response.Message.Parts {
-			if textPart, ok := part.(llmite.TextPart); ok {
+			if textPart, ok := part.(llms.TextPart); ok {
 				hasText = true
 				assert.NotEmpty(t, textPart.Text)
 			}
@@ -244,9 +247,10 @@ func TestOpenAIClientConfiguration(t *testing.T) {
 	})
 
 	t.Run("with tools", func(t *testing.T) {
-		tools := []llmite.Tool{testutil.WeatherTool{}}
+		tools := []llms.Tool{testutil.WeatherTool{}}
 		client := New(WithTools(tools))
 		oaiClient := client.(*Client)
 		assert.Equal(t, tools, oaiClient.Tools)
 	})
 }
+

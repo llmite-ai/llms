@@ -30,15 +30,15 @@ func (suite *AnthropicTestSuite) TestGenerateBasic() {
 		anthropic.WithHttpLogging(),
 	)
 
-	msg := llmite.NewTextMessage(llmite.RoleUser, "What is the meaning of life?")
+	msg := llms.NewTextMessage(llms.RoleUser, "What is the meaning of life?")
 
-	resp, err := client.Generate(ctx, []llmite.Message{msg})
+	resp, err := client.Generate(ctx, []llms.Message{msg})
 	suite.NoError(err)
 	suite.NotEmpty(resp.ID)
 	suite.Require().NotEmpty(resp.Message.Parts)
 
 	textPart := resp.Message.Parts[0]
-	suite.IsType(llmite.TextPart{}, textPart)
+	suite.IsType(llms.TextPart{}, textPart)
 }
 
 func (suite *AnthropicTestSuite) TestGenerateSystemPrompt() {
@@ -48,18 +48,18 @@ func (suite *AnthropicTestSuite) TestGenerateSystemPrompt() {
 		anthropic.WithHttpLogging(),
 	)
 
-	systemMsg := llmite.NewTextMessage(llmite.RoleSystem, "You only response in 'beep'  Example: beep beep beep.")
-	userMsg := llmite.NewTextMessage(llmite.RoleUser, "Hello, how are you?")
+	systemMsg := llms.NewTextMessage(llms.RoleSystem, "You only response in 'beep'  Example: beep beep beep.")
+	userMsg := llms.NewTextMessage(llms.RoleUser, "Hello, how are you?")
 
-	resp, err := client.Generate(ctx, []llmite.Message{systemMsg, userMsg})
+	resp, err := client.Generate(ctx, []llms.Message{systemMsg, userMsg})
 	suite.Require().NoError(err)
 	suite.NotEmpty(resp.ID)
 	suite.Require().NotEmpty(resp.Message.Parts)
 
 	textPart := resp.Message.Parts[0]
-	suite.Require().IsType(llmite.TextPart{}, textPart)
+	suite.Require().IsType(llms.TextPart{}, textPart)
 
-	text, ok := textPart.(llmite.TextPart)
+	text, ok := textPart.(llms.TextPart)
 	suite.True(ok)
 	suite.Contains(text.Text, "beep")
 }
@@ -68,16 +68,16 @@ func (suite *AnthropicTestSuite) TestGenerateWithToolCalls() {
 	suite.T().Parallel() // Enable parallel execution for this method
 	ctx := context.Background()
 	client := anthropic.New(
-		anthropic.WithTools([]llmite.Tool{
+		anthropic.WithTools([]llms.Tool{
 			testutil.NewBoopTool(),
 		}),
 		anthropic.WithHttpLogging(),
 	)
 
-	systemMsg := llmite.NewTextMessage(llmite.RoleSystem, "You are a helpful assistant. That helps the user translate things.")
-	userMsg := llmite.NewTextMessage(llmite.RoleUser, "My computer said `boop boop boop` when I turned it on. What does that mean?")
+	systemMsg := llms.NewTextMessage(llms.RoleSystem, "You are a helpful assistant. That helps the user translate things.")
+	userMsg := llms.NewTextMessage(llms.RoleUser, "My computer said `boop boop boop` when I turned it on. What does that mean?")
 
-	resp, err := client.Generate(ctx, []llmite.Message{systemMsg, userMsg})
+	resp, err := client.Generate(ctx, []llms.Message{systemMsg, userMsg})
 	suite.Require().NoError(err)
 	suite.NotEmpty(resp.ID)
 	suite.Require().NotEmpty(resp.Message.Parts)
@@ -89,9 +89,9 @@ func (suite *AnthropicTestSuite) TestGenerateWithToolCalls() {
 
 	for _, part := range resp.Message.Parts {
 		switch p := part.(type) {
-		case llmite.TextPart:
+		case llms.TextPart:
 			hasTextPart = true
-		case llmite.ToolCallPart:
+		case llms.ToolCallPart:
 			hasToolPart = true
 
 			var params testutil.BoopToolParams
@@ -111,12 +111,12 @@ func (suite *AnthropicTestSuite) TestGenerateStreamBasic() {
 		anthropic.WithHttpLogging(),
 	)
 
-	msg := llmite.NewTextMessage(llmite.RoleUser, "Tell me a short story about a robot in exactly 3 sentences.")
+	msg := llms.NewTextMessage(llms.RoleUser, "Tell me a short story about a robot in exactly 3 sentences.")
 
 	streamCallCount := 0
-	var finalResponse *llmite.Response
+	var finalResponse *llms.Response
 
-	resp, err := client.GenerateStream(ctx, []llmite.Message{msg}, func(response *llmite.Response, streamErr error) bool {
+	resp, err := client.GenerateStream(ctx, []llms.Message{msg}, func(response *llms.Response, streamErr error) bool {
 		suite.NoError(streamErr, "stream function should not receive errors")
 		if response != nil {
 			streamCallCount++
@@ -135,7 +135,7 @@ func (suite *AnthropicTestSuite) TestGenerateStreamBasic() {
 	suite.Equal(finalResponse.ID, resp.ID, "final response should match last streamed response")
 
 	textPart := resp.Message.Parts[0]
-	suite.IsType(llmite.TextPart{}, textPart)
+	suite.IsType(llms.TextPart{}, textPart)
 }
 
 func (suite *AnthropicTestSuite) TestGenerateStreamSystemPrompt() {
@@ -145,17 +145,17 @@ func (suite *AnthropicTestSuite) TestGenerateStreamSystemPrompt() {
 		anthropic.WithHttpLogging(),
 	)
 
-	systemMsg := llmite.NewTextMessage(llmite.RoleSystem, "You only respond with numbers. Count from 1 to 5.")
-	userMsg := llmite.NewTextMessage(llmite.RoleUser, "Start counting")
+	systemMsg := llms.NewTextMessage(llms.RoleSystem, "You only respond with numbers. Count from 1 to 5.")
+	userMsg := llms.NewTextMessage(llms.RoleUser, "Start counting")
 
 	streamCallCount := 0
 	receivedTexts := make([]string, 0)
 
-	resp, err := client.GenerateStream(ctx, []llmite.Message{systemMsg, userMsg}, func(response *llmite.Response, streamErr error) bool {
+	resp, err := client.GenerateStream(ctx, []llms.Message{systemMsg, userMsg}, func(response *llms.Response, streamErr error) bool {
 		suite.NoError(streamErr)
 		if response != nil && len(response.Message.Parts) > 0 {
 			streamCallCount++
-			if textPart, ok := response.Message.Parts[0].(llmite.TextPart); ok {
+			if textPart, ok := response.Message.Parts[0].(llms.TextPart); ok {
 				receivedTexts = append(receivedTexts, textPart.Text)
 			}
 		}
@@ -167,7 +167,7 @@ func (suite *AnthropicTestSuite) TestGenerateStreamSystemPrompt() {
 	suite.NotNil(resp)
 	suite.NotEmpty(resp.Message.Parts)
 
-	textPart, ok := resp.Message.Parts[0].(llmite.TextPart)
+	textPart, ok := resp.Message.Parts[0].(llms.TextPart)
 	suite.True(ok)
 	
 	// Check that the final response contains numbers as expected from system prompt
@@ -178,24 +178,24 @@ func (suite *AnthropicTestSuite) TestGenerateStreamWithToolCalls() {
 	suite.T().Parallel()
 	ctx := context.Background()
 	client := anthropic.New(
-		anthropic.WithTools([]llmite.Tool{
+		anthropic.WithTools([]llms.Tool{
 			testutil.NewBoopTool(),
 		}),
 		anthropic.WithHttpLogging(),
 	)
 
-	systemMsg := llmite.NewTextMessage(llmite.RoleSystem, "You are a helpful assistant that translates boops.")
-	userMsg := llmite.NewTextMessage(llmite.RoleUser, "My computer said `boop boop boop`. Please translate this.")
+	systemMsg := llms.NewTextMessage(llms.RoleSystem, "You are a helpful assistant that translates boops.")
+	userMsg := llms.NewTextMessage(llms.RoleUser, "My computer said `boop boop boop`. Please translate this.")
 
 	streamCallCount := 0
 	hasSeenToolCall := false
 
-	resp, err := client.GenerateStream(ctx, []llmite.Message{systemMsg, userMsg}, func(response *llmite.Response, streamErr error) bool {
+	resp, err := client.GenerateStream(ctx, []llms.Message{systemMsg, userMsg}, func(response *llms.Response, streamErr error) bool {
 		suite.NoError(streamErr)
 		if response != nil {
 			streamCallCount++
 			for _, part := range response.Message.Parts {
-				if _, ok := part.(llmite.ToolCallPart); ok {
+				if _, ok := part.(llms.ToolCallPart); ok {
 					hasSeenToolCall = true
 				}
 			}
@@ -213,9 +213,9 @@ func (suite *AnthropicTestSuite) TestGenerateStreamWithToolCalls() {
 
 	for _, part := range resp.Message.Parts {
 		switch p := part.(type) {
-		case llmite.TextPart:
+		case llms.TextPart:
 			hasTextPart = true
-		case llmite.ToolCallPart:
+		case llms.ToolCallPart:
 			hasToolPart = true
 			var params testutil.BoopToolParams
 			err := json.Unmarshal(p.Input, &params)
@@ -235,12 +235,12 @@ func (suite *AnthropicTestSuite) TestGenerateStreamEarlyTermination() {
 		anthropic.WithHttpLogging(),
 	)
 
-	msg := llmite.NewTextMessage(llmite.RoleUser, "Write a long story about a journey.")
+	msg := llms.NewTextMessage(llms.RoleUser, "Write a long story about a journey.")
 
 	streamCallCount := 0
 	maxCalls := 3
 
-	resp, err := client.GenerateStream(ctx, []llmite.Message{msg}, func(response *llmite.Response, streamErr error) bool {
+	resp, err := client.GenerateStream(ctx, []llms.Message{msg}, func(response *llms.Response, streamErr error) bool {
 		suite.NoError(streamErr)
 		if response != nil {
 			streamCallCount++
@@ -267,12 +267,12 @@ func (suite *AnthropicTestSuite) TestGenerateStreamErrorHandling() {
 		anthropic.WithHttpLogging(),
 	)
 
-	msg := llmite.NewTextMessage(llmite.RoleUser, "Hello")
+	msg := llms.NewTextMessage(llms.RoleUser, "Hello")
 
 	streamCallCount := 0
 	receivedError := false
 
-	resp, err := client.GenerateStream(ctx, []llmite.Message{msg}, func(response *llmite.Response, streamErr error) bool {
+	resp, err := client.GenerateStream(ctx, []llms.Message{msg}, func(response *llms.Response, streamErr error) bool {
 		streamCallCount++
 		if streamErr != nil {
 			receivedError = true

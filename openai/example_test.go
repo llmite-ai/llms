@@ -19,17 +19,17 @@ func ExampleClient_Generate() {
 	)
 
 	// Create messages
-	messages := []llmite.Message{
+	messages := []llms.Message{
 		{
-			Role: llmite.RoleSystem,
-			Parts: []llmite.Part{
-				llmite.TextPart{Text: "You are a helpful assistant."},
+			Role: llms.RoleSystem,
+			Parts: []llms.Part{
+				llms.TextPart{Text: "You are a helpful assistant."},
 			},
 		},
 		{
-			Role: llmite.RoleUser,
-			Parts: []llmite.Part{
-				llmite.TextPart{Text: "What is the capital of France?"},
+			Role: llms.RoleUser,
+			Parts: []llms.Part{
+				llms.TextPart{Text: "What is the capital of France?"},
 			},
 		},
 	}
@@ -42,7 +42,7 @@ func ExampleClient_Generate() {
 
 	// Print the response
 	for _, part := range response.Message.Parts {
-		if textPart, ok := part.(llmite.TextPart); ok {
+		if textPart, ok := part.(llms.TextPart); ok {
 			fmt.Println(textPart.Text)
 		}
 	}
@@ -56,17 +56,17 @@ func ExampleClient_GenerateStream() {
 	)
 
 	// Create messages
-	messages := []llmite.Message{
+	messages := []llms.Message{
 		{
-			Role: llmite.RoleUser,
-			Parts: []llmite.Part{
-				llmite.TextPart{Text: "Count from 1 to 5"},
+			Role: llms.RoleUser,
+			Parts: []llms.Part{
+				llms.TextPart{Text: "Count from 1 to 5"},
 			},
 		},
 	}
 
 	// Generate streaming response
-	_, err := client.GenerateStream(context.Background(), messages, func(response *llmite.Response, err error) bool {
+	_, err := client.GenerateStream(context.Background(), messages, func(response *llms.Response, err error) bool {
 		if err != nil {
 			log.Printf("Streaming error: %v", err)
 			return false
@@ -74,7 +74,7 @@ func ExampleClient_GenerateStream() {
 
 		// Process each part in the response
 		for _, part := range response.Message.Parts {
-			if textPart, ok := part.(llmite.TextPart); ok {
+			if textPart, ok := part.(llms.TextPart); ok {
 				fmt.Print(textPart.Text)
 			}
 		}
@@ -97,11 +97,11 @@ func ExampleClient_WithLogging() {
 	os.Setenv("OPENAI_API_KEY", "your-api-key-here")
 
 	// Create messages
-	messages := []llmite.Message{
+	messages := []llms.Message{
 		{
-			Role: llmite.RoleUser,
-			Parts: []llmite.Part{
-				llmite.TextPart{Text: "Hello, world!"},
+			Role: llms.RoleUser,
+			Parts: []llms.Part{
+				llms.TextPart{Text: "Hello, world!"},
 			},
 		},
 	}
@@ -114,7 +114,7 @@ func ExampleClient_WithLogging() {
 
 	// Print the response
 	for _, part := range response.Message.Parts {
-		if textPart, ok := part.(llmite.TextPart); ok {
+		if textPart, ok := part.(llms.TextPart); ok {
 			fmt.Println(textPart.Text)
 		}
 	}

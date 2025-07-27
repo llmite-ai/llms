@@ -1,4 +1,4 @@
-package llmite
+package llms
 
 import (
 	"github.com/invopop/jsonschema"

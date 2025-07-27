@@ -1,4 +1,4 @@
-package llmite // convertMessages converts the internal message format to the format
+package llms // convertMessages converts the internal message format to the format
 
 type TextPart struct {
 	Text string `json:"text"`

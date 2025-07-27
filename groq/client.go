@@ -1,4 +1,4 @@
-package gemini
+package groq
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/llmite-ai/llms"
 )
 
-const ProviderGemini = "gemini"
+const ProviderKey = "groq"
 
 type Client struct {
 	Model              string

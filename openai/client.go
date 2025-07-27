@@ -18,7 +18,7 @@ type Client struct {
 	MaxTokens   int64
 	Temperature *float64
 	TopP        *float64
-	Tools       []llmite.Tool
+	Tools       []llms.Tool
 
 	client  *openai.Client
 	options []option.RequestOption
@@ -27,7 +27,7 @@ type Client struct {
 type Modifier func(*Client)
 
 // WithOpenAIClientOptions allows you to set options on the client. This is useful for setting
-// options that are not exposed by the llmite.OpenAI struct, such as setting a
+// options that are not exposed by the llms.OpenAI struct, such as setting a
 // custom HTTP client, timeout, or base URL.
 func WithOpenAIClientOptions(options ...option.RequestOption) Modifier {
 	return func(c *Client) {
@@ -39,7 +39,7 @@ func WithOpenAIClientOptions(options ...option.RequestOption) Modifier {
 // logger.
 func WithHttpLogging() Modifier {
 	return func(c *Client) {
-		client := llmite.NewDefaultHTTPClientWithLogging()
+		client := llms.NewDefaultHTTPClientWithLogging()
 		c.options = append(c.options, option.WithHTTPClient(client))
 	}
 }
@@ -73,7 +73,7 @@ func WithTopP(topP float64) Modifier {
 }
 
 // WithTools allows you to set the tools on the client.
-func WithTools(tools []llmite.Tool) Modifier {
+func WithTools(tools []llms.Tool) Modifier {
 	return func(c *Client) {
 		c.Tools = tools
 	}
@@ -81,7 +81,7 @@ func WithTools(tools []llmite.Tool) Modifier {
 
 // New creates a new OpenAI client with the default options.
 // This includes reading the OPENAI_API_KEY environment variable.
-func New(mods ...Modifier) llmite.LLM {
+func New(mods ...Modifier) llms.LLM {
 	c := &Client{
 		Model:     "gpt-4o",
 		MaxTokens: 1024,
@@ -105,7 +105,7 @@ func (c *Client) GetClient() *openai.Client {
 	return c.client
 }
 
-func (c *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
+func (c *Client) Generate(ctx context.Context, messages []llms.Message) (*llms.Response, error) {
 	oaiMessages, err := convertMessages(messages)
 	if err != nil {
 		return nil, err
@@ -144,16 +144,16 @@ func (c *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 	}
 
 	choice := oaiResponse.Choices[0]
-	msgOut := llmite.Message{
-		Role:  llmite.RoleAssistant,
-		Parts: []llmite.Part{},
+	msgOut := llms.Message{
+		Role:  llms.RoleAssistant,
+		Parts: []llms.Part{},
 	}
 
 	errs := make([]error, 0)
 
 	// Handle text content
 	if choice.Message.Content != "" {
-		msgOut.Parts = append(msgOut.Parts, llmite.TextPart{
+		msgOut.Parts = append(msgOut.Parts, llms.TextPart{
 			Text: choice.Message.Content,
 		})
 	}
@@ -161,7 +161,7 @@ func (c *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 	// Handle tool calls
 	for _, toolCall := range choice.Message.ToolCalls {
 		if toolCall.Type == "function" {
-			msgOut.Parts = append(msgOut.Parts, llmite.ToolCallPart{
+			msgOut.Parts = append(msgOut.Parts, llms.ToolCallPart{
 				ID:    toolCall.ID,
 				Name:  toolCall.Function.Name,
 				Input: []byte(toolCall.Function.Arguments),
@@ -169,7 +169,7 @@ func (c *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 		}
 	}
 
-	out := &llmite.Response{
+	out := &llms.Response{
 		ID:       oaiResponse.ID,
 		Message:  msgOut,
 		Provider: ProviderOpenAI,
@@ -183,7 +183,7 @@ func (c *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 	return out, nil
 }
 
-func (c *Client) GenerateStream(ctx context.Context, messages []llmite.Message, fn llmite.StreamFunc) (*llmite.Response, error) {
+func (c *Client) GenerateStream(ctx context.Context, messages []llms.Message, fn llms.StreamFunc) (*llms.Response, error) {
 	oaiMessages, err := convertMessages(messages)
 	if err != nil {
 		return nil, err
@@ -215,16 +215,16 @@ func (c *Client) GenerateStream(ctx context.Context, messages []llmite.Message, 
 	stream := c.client.Chat.Completions.NewStreaming(ctx, params)
 	defer stream.Close()
 
-	out := &llmite.Response{
-		Message: llmite.Message{
-			Role:  llmite.RoleAssistant,
-			Parts: []llmite.Part{},
+	out := &llms.Response{
+		Message: llms.Message{
+			Role:  llms.RoleAssistant,
+			Parts: []llms.Part{},
 		},
 		Provider: ProviderOpenAI,
 	}
 
 	// Track tool calls across chunks
-	toolCalls := make(map[string]*llmite.ToolCallPart)
+	toolCalls := make(map[string]*llms.ToolCallPart)
 
 	for stream.Next() {
 		chunk := stream.Current()
@@ -242,7 +242,7 @@ func (c *Client) GenerateStream(ctx context.Context, messages []llmite.Message, 
 
 		// Handle text content
 		if delta.Content != "" {
-			textPart := llmite.TextPart{Text: delta.Content}
+			textPart := llms.TextPart{Text: delta.Content}
 			out.Message.Parts = append(out.Message.Parts, textPart)
 			
 			// Call the stream function with the response and error
@@ -260,7 +260,7 @@ func (c *Client) GenerateStream(ctx context.Context, messages []llmite.Message, 
 					existingCall.Input = append(existingCall.Input, []byte(toolCall.Function.Arguments)...)
 				} else {
 					// Create new tool call
-					newCall := &llmite.ToolCallPart{
+					newCall := &llms.ToolCallPart{
 						ID:    toolCall.ID,
 						Name:  toolCall.Function.Name,
 						Input: []byte(toolCall.Function.Arguments),
@@ -285,17 +285,17 @@ func (c *Client) GenerateStream(ctx context.Context, messages []llmite.Message, 
 	return out, nil
 }
 
-func convertMessages(messages []llmite.Message) ([]openai.ChatCompletionMessageParamUnion, error) {
+func convertMessages(messages []llms.Message) ([]openai.ChatCompletionMessageParamUnion, error) {
 	out := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
 
 	for i, message := range messages {
 		switch message.Role {
-		case llmite.RoleSystem:
+		case llms.RoleSystem:
 			// Convert system message
 			content := ""
 			for _, part := range message.Parts {
 				switch p := part.(type) {
-				case llmite.TextPart:
+				case llms.TextPart:
 					content += p.Text
 				default:
 					return nil, fmt.Errorf("[message %d] openai: unsupported system message part type: %T", i, p)
@@ -304,12 +304,12 @@ func convertMessages(messages []llmite.Message) ([]openai.ChatCompletionMessageP
 			
 			out = append(out, openai.SystemMessage(content))
 
-		case llmite.RoleUser:
+		case llms.RoleUser:
 			// Convert user message
 			content := ""
 			for _, part := range message.Parts {
 				switch p := part.(type) {
-				case llmite.TextPart:
+				case llms.TextPart:
 					content += p.Text
 				default:
 					return nil, fmt.Errorf("[message %d] openai: unsupported user message part type: %T", i, p)
@@ -318,18 +318,18 @@ func convertMessages(messages []llmite.Message) ([]openai.ChatCompletionMessageP
 			
 			out = append(out, openai.UserMessage(content))
 
-		case llmite.RoleAssistant:
+		case llms.RoleAssistant:
 			// Convert assistant message
 			content := ""
 			hasToolResults := false
 			
 			for _, part := range message.Parts {
 				switch p := part.(type) {
-				case llmite.TextPart:
+				case llms.TextPart:
 					content += p.Text
-				case llmite.ToolCallPart:
+				case llms.ToolCallPart:
 					// TODO: Handle tool calls properly
-				case llmite.ToolResultPart:
+				case llms.ToolResultPart:
 					hasToolResults = true
 					// Tool results are handled as separate messages
 					out = append(out, openai.ToolMessage(p.Result, p.ToolCallID))
@@ -353,7 +353,7 @@ func convertMessages(messages []llmite.Message) ([]openai.ChatCompletionMessageP
 	return out, nil
 }
 
-func convertTools(tools []llmite.Tool) ([]openai.ChatCompletionToolParam, error) {
+func convertTools(tools []llms.Tool) ([]openai.ChatCompletionToolParam, error) {
 	if len(tools) == 0 {
 		return nil, nil
 	}

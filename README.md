@@ -1,8 +1,8 @@
-# llmite - llms
+# llms
 
 **⚠️ This project is currently in beta. APIs may change.**
 
-llmite llms is a Go library that provides a unified interface for working with Large Language Models (LLMs) from different providers. It offers a consistent API that allows you to switch between providers like Anthropic Claude and Google Gemini without changing your application code.
+llms is a Go library that provides a unified interface for working with Large Language Models (LLMs) from different providers. It offers a consistent API that allows you to switch between providers like Anthropic Claude and Google Gemini without changing your application code.
 
 ## Features
 
@@ -41,11 +41,11 @@ func main() {
     client := anthropic.NewClient(os.Getenv("ANTHROPIC_API_KEY"))
     
     // Create messages
-    messages := []llmite.Message{
+    messages := []llms.Message{
         {
-            Role: llmite.RoleUser,
-            Parts: []llmite.Part{
-                {Type: llmite.PartTypeText, Text: "What is the capital of France?"},
+            Role: llms.RoleUser,
+            Parts: []llms.Part{
+                {Type: llms.PartTypeText, Text: "What is the capital of France?"},
             },
         },
     }
@@ -83,11 +83,11 @@ func main() {
     )
     
     // Create messages
-    messages := []llmite.Message{
+    messages := []llms.Message{
         {
-            Role: llmite.RoleUser,
-            Parts: []llmite.Part{
-                llmite.TextPart{Text: "What is the capital of France?"},
+            Role: llms.RoleUser,
+            Parts: []llms.Part{
+                llms.TextPart{Text: "What is the capital of France?"},
             },
         },
     }
@@ -99,7 +99,7 @@ func main() {
     }
     
     for _, part := range response.Message.Parts {
-        if textPart, ok := part.(llmite.TextPart); ok {
+        if textPart, ok := part.(llms.TextPart); ok {
             fmt.Println(textPart.Text)
         }
     }
@@ -131,11 +131,11 @@ func main() {
     }
     
     // Create messages
-    messages := []llmite.Message{
+    messages := []llms.Message{
         {
-            Role: llmite.RoleUser,
-            Parts: []llmite.Part{
-                llmite.TextPart{Text: "Explain quantum computing in simple terms"},
+            Role: llms.RoleUser,
+            Parts: []llms.Part{
+                llms.TextPart{Text: "Explain quantum computing in simple terms"},
             },
         },
     }
@@ -147,7 +147,7 @@ func main() {
     }
     
     for _, part := range response.Message.Parts {
-        if textPart, ok := part.(llmite.TextPart); ok {
+        if textPart, ok := part.(llms.TextPart); ok {
             fmt.Println(textPart.Text)
         }
     }
@@ -174,17 +174,17 @@ func main() {
         openai.WithModel("gpt-4o-mini"),
     )
     
-    messages := []llmite.Message{
+    messages := []llms.Message{
         {
-            Role: llmite.RoleUser,
-            Parts: []llmite.Part{
-                llmite.TextPart{Text: "Write a short story about a robot"},
+            Role: llms.RoleUser,
+            Parts: []llms.Part{
+                llms.TextPart{Text: "Write a short story about a robot"},
             },
         },
     }
     
     // Stream response
-    _, err := client.GenerateStream(context.Background(), messages, func(response *llmite.Response, err error) bool {
+    _, err := client.GenerateStream(context.Background(), messages, func(response *llms.Response, err error) bool {
         if err != nil {
             log.Printf("Streaming error: %v", err)
             return false
@@ -192,7 +192,7 @@ func main() {
         
         // Process each part in the response
         for _, part := range response.Message.Parts {
-            if textPart, ok := part.(llmite.TextPart); ok {
+            if textPart, ok := part.(llms.TextPart); ok {
                 fmt.Print(textPart.Text)
             }
         }
@@ -249,13 +249,13 @@ func main() {
     client := anthropic.NewClient(os.Getenv("ANTHROPIC_API_KEY"))
     
     // Register tools
-    tools := []llmite.Tool{WeatherTool{}}
+    tools := []llms.Tool{WeatherTool{}}
     
-    messages := []llmite.Message{
+    messages := []llms.Message{
         {
-            Role: llmite.RoleUser,
-            Parts: []llmite.Part{
-                {Type: llmite.PartTypeText, Text: "What's the weather like in San Francisco?"},
+            Role: llms.RoleUser,
+            Parts: []llms.Part{
+                {Type: llms.PartTypeText, Text: "What's the weather like in San Francisco?"},
             },
         },
     }
@@ -267,7 +267,7 @@ func main() {
     
     // Handle tool calls
     for _, part := range response.Message.Parts {
-        if part.Type == llmite.PartTypeToolCall {
+        if part.Type == llms.PartTypeToolCall {
             fmt.Printf("Tool called: %s\n", part.ToolCall.Name)
             // Execute tool and add result to conversation...
         }
@@ -291,7 +291,7 @@ import (
 
 func main() {
     // Enable HTTP logging
-    llmite.EnableHTTPLogging(llmite.HTTPLoggingConfig{
+    llms.EnableHTTPLogging(llms.HTTPLoggingConfig{
         LogHeaders:     true,
         LogRequestBody: true,
         LogResponseBody: true,
@@ -301,11 +301,11 @@ func main() {
     client := anthropic.NewClient(os.Getenv("ANTHROPIC_API_KEY"))
     
     // Your requests will now be logged
-    messages := []llmite.Message{
+    messages := []llms.Message{
         {
-            Role: llmite.RoleUser,
-            Parts: []llmite.Part{
-                {Type: llmite.PartTypeText, Text: "Hello!"},
+            Role: llms.RoleUser,
+            Parts: []llms.Part{
+                {Type: llms.PartTypeText, Text: "Hello!"},
             },
         },
     }

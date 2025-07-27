@@ -1,4 +1,4 @@
-package llmite
+package llms
 
 type Role string
 

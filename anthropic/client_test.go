@@ -17,54 +17,54 @@ import (
 func TestConvertMessages(t *testing.T) {
 	tests := []struct {
 		name     string
-		messages []llmite.Message
+		messages []llms.Message
 		wantErr  bool
 	}{
 		{
 			name: "single text message",
-			messages: []llmite.Message{
+			messages: []llms.Message{
 				{
-					Role:  llmite.RoleUser,
-					Parts: []llmite.Part{llmite.TextPart{Text: "Hello"}},
+					Role:  llms.RoleUser,
+					Parts: []llms.Part{llms.TextPart{Text: "Hello"}},
 				},
 			},
 			wantErr: false,
 		},
 		{
 			name: "system message",
-			messages: []llmite.Message{
+			messages: []llms.Message{
 				{
-					Role:  llmite.RoleSystem,
-					Parts: []llmite.Part{llmite.TextPart{Text: "You are a helpful assistant"}},
+					Role:  llms.RoleSystem,
+					Parts: []llms.Part{llms.TextPart{Text: "You are a helpful assistant"}},
 				},
 			},
 			wantErr: false,
 		},
 		{
 			name: "multiple messages with different roles",
-			messages: []llmite.Message{
+			messages: []llms.Message{
 				{
-					Role:  llmite.RoleSystem,
-					Parts: []llmite.Part{llmite.TextPart{Text: "You are a helpful assistant"}},
+					Role:  llms.RoleSystem,
+					Parts: []llms.Part{llms.TextPart{Text: "You are a helpful assistant"}},
 				},
 				{
-					Role:  llmite.RoleUser,
-					Parts: []llmite.Part{llmite.TextPart{Text: "Hello"}},
+					Role:  llms.RoleUser,
+					Parts: []llms.Part{llms.TextPart{Text: "Hello"}},
 				},
 				{
-					Role:  llmite.RoleAssistant,
-					Parts: []llmite.Part{llmite.TextPart{Text: "Hi there!"}},
+					Role:  llms.RoleAssistant,
+					Parts: []llms.Part{llms.TextPart{Text: "Hi there!"}},
 				},
 			},
 			wantErr: false,
 		},
 		{
 			name: "tool call message",
-			messages: []llmite.Message{
+			messages: []llms.Message{
 				{
-					Role: llmite.RoleAssistant,
-					Parts: []llmite.Part{
-						llmite.ToolCallPart{
+					Role: llms.RoleAssistant,
+					Parts: []llms.Part{
+						llms.ToolCallPart{
 							ID:    "call_123",
 							Name:  "test_tool",
 							Input: []byte(`{"arg": "value"}`),
@@ -76,11 +76,11 @@ func TestConvertMessages(t *testing.T) {
 		},
 		{
 			name: "tool result message",
-			messages: []llmite.Message{
+			messages: []llms.Message{
 				{
-					Role: llmite.RoleUser,
-					Parts: []llmite.Part{
-						llmite.ToolResultPart{
+					Role: llms.RoleUser,
+					Parts: []llms.Part{
+						llms.ToolResultPart{
 							ToolCallID: "call_123",
 							Name:       "test_tool",
 							Result:     "success",
@@ -92,11 +92,11 @@ func TestConvertMessages(t *testing.T) {
 		},
 		{
 			name: "tool result with error",
-			messages: []llmite.Message{
+			messages: []llms.Message{
 				{
-					Role: llmite.RoleUser,
-					Parts: []llmite.Part{
-						llmite.ToolResultPart{
+					Role: llms.RoleUser,
+					Parts: []llms.Part{
+						llms.ToolResultPart{
 							ToolCallID: "call_123",
 							Name:       "test_tool",
 							Result:     "failed",
@@ -109,12 +109,12 @@ func TestConvertMessages(t *testing.T) {
 		},
 		{
 			name: "mixed content message",
-			messages: []llmite.Message{
+			messages: []llms.Message{
 				{
-					Role: llmite.RoleUser,
-					Parts: []llmite.Part{
-						llmite.TextPart{Text: "Please use this tool:"},
-						llmite.ToolCallPart{
+					Role: llms.RoleUser,
+					Parts: []llms.Part{
+						llms.TextPart{Text: "Please use this tool:"},
+						llms.ToolCallPart{
 							ID:    "call_456",
 							Name:  "calculator",
 							Input: []byte(`{"expression": "2+2"}`),
@@ -140,7 +140,7 @@ func TestConvertMessages(t *testing.T) {
 			// Check that system messages are properly extracted
 			systemCount := 0
 			for _, msg := range tt.messages {
-				if msg.Role == llmite.RoleSystem {
+				if msg.Role == llms.RoleSystem {
 					systemCount++
 				}
 			}
@@ -152,7 +152,7 @@ func TestConvertMessages(t *testing.T) {
 			// Check that non-system messages are properly converted
 			nonSystemCount := 0
 			for _, msg := range tt.messages {
-				if msg.Role != llmite.RoleSystem {
+				if msg.Role != llms.RoleSystem {
 					nonSystemCount++
 				}
 			}
@@ -162,7 +162,7 @@ func TestConvertMessages(t *testing.T) {
 			// Verify message structure for non-system messages
 			nonSystemIndex := 0
 			for _, originalMsg := range tt.messages {
-				if originalMsg.Role == llmite.RoleSystem {
+				if originalMsg.Role == llms.RoleSystem {
 					continue
 				}
 
@@ -172,9 +172,9 @@ func TestConvertMessages(t *testing.T) {
 
 				// Check that role conversion is correct
 				switch originalMsg.Role {
-				case llmite.RoleUser:
+				case llms.RoleUser:
 					assert.Equal(t, anthropic.MessageParamRoleUser, msg.Role)
-				case llmite.RoleAssistant:
+				case llms.RoleAssistant:
 					assert.Equal(t, anthropic.MessageParamRoleAssistant, msg.Role)
 				}
 
@@ -185,18 +185,18 @@ func TestConvertMessages(t *testing.T) {
 }
 
 func TestConvertMessages_SystemMessages(t *testing.T) {
-	messages := []llmite.Message{
+	messages := []llms.Message{
 		{
-			Role:  llmite.RoleSystem,
-			Parts: []llmite.Part{llmite.TextPart{Text: "First system message"}},
+			Role:  llms.RoleSystem,
+			Parts: []llms.Part{llms.TextPart{Text: "First system message"}},
 		},
 		{
-			Role:  llmite.RoleSystem,
-			Parts: []llmite.Part{llmite.TextPart{Text: "Second system message"}},
+			Role:  llms.RoleSystem,
+			Parts: []llms.Part{llms.TextPart{Text: "Second system message"}},
 		},
 		{
-			Role:  llmite.RoleUser,
-			Parts: []llmite.Part{llmite.TextPart{Text: "User message"}},
+			Role:  llms.RoleUser,
+			Parts: []llms.Part{llms.TextPart{Text: "User message"}},
 		},
 	}
 
@@ -229,8 +229,8 @@ func (m *mockTool) Schema() *jsonschema.Schema {
 	return m.schema
 }
 
-func (m *mockTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
-	return &llmite.ToolResult{
+func (m *mockTool) Execute(ctx context.Context, args []byte) *llms.ToolResult {
+	return &llms.ToolResult{
 		ID:      "test_result",
 		Content: "mock result",
 	}
@@ -239,17 +239,17 @@ func (m *mockTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult 
 func TestConvertTools(t *testing.T) {
 	tests := []struct {
 		name    string
-		tools   []llmite.Tool
+		tools   []llms.Tool
 		wantErr bool
 	}{
 		{
 			name:    "empty tools",
-			tools:   []llmite.Tool{},
+			tools:   []llms.Tool{},
 			wantErr: false,
 		},
 		{
 			name: "single tool",
-			tools: []llmite.Tool{
+			tools: []llms.Tool{
 				&mockTool{
 					name:        "test_tool",
 					description: "A test tool",
@@ -268,7 +268,7 @@ func TestConvertTools(t *testing.T) {
 		},
 		{
 			name: "multiple tools",
-			tools: []llmite.Tool{
+			tools: []llms.Tool{
 				&mockTool{
 					name:        "calculator",
 					description: "Calculate mathematical expressions",
@@ -356,7 +356,7 @@ func TestConvertTools_SchemaValidation(t *testing.T) {
 		},
 	}
 
-	result, err := convertTools([]llmite.Tool{tool})
+	result, err := convertTools([]llms.Tool{tool})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 

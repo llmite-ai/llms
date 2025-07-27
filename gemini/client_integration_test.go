@@ -29,9 +29,9 @@ func (suite *GeminiTestSuite) TestGenerateStreamBasic() {
 	)
 	suite.Require().NoError(err)
 
-	msg := llmite.NewTextMessage(llmite.RoleUser, "What is the meaning of life?")
+	msg := llms.NewTextMessage(llms.RoleUser, "What is the meaning of life?")
 
-	resp, err := client.GenerateStream(ctx, []llmite.Message{msg}, func(response *llmite.Response, err error) bool {
+	resp, err := client.GenerateStream(ctx, []llms.Message{msg}, func(response *llms.Response, err error) bool {
 		if err != nil {
 			fmt.Printf("Stream error: %v\n", err)
 			return false
@@ -43,7 +43,7 @@ func (suite *GeminiTestSuite) TestGenerateStreamBasic() {
 	suite.Require().NotEmpty(resp.Message.Parts)
 
 	textPart := resp.Message.Parts[0]
-	suite.IsType(llmite.TextPart{}, textPart)
+	suite.IsType(llms.TextPart{}, textPart)
 }
 
 func (suite *GeminiTestSuite) TestGenerateStreamSystemPrompt() {
@@ -55,9 +55,9 @@ func (suite *GeminiTestSuite) TestGenerateStreamSystemPrompt() {
 	)
 	suite.Require().NoError(err)
 
-	userMsg := llmite.NewTextMessage(llmite.RoleUser, "What is your favorite color?")
+	userMsg := llms.NewTextMessage(llms.RoleUser, "What is your favorite color?")
 
-	resp, err := client.GenerateStream(ctx, []llmite.Message{userMsg}, func(response *llmite.Response, err error) bool {
+	resp, err := client.GenerateStream(ctx, []llms.Message{userMsg}, func(response *llms.Response, err error) bool {
 		fmt.Println("Stream chunk:", response)
 		return true
 	})
@@ -65,9 +65,9 @@ func (suite *GeminiTestSuite) TestGenerateStreamSystemPrompt() {
 	suite.Require().NotEmpty(resp.Message.Parts)
 
 	textPart := resp.Message.Parts[0]
-	suite.Require().IsType(llmite.TextPart{}, textPart)
+	suite.Require().IsType(llms.TextPart{}, textPart)
 
-	text, ok := textPart.(llmite.TextPart)
+	text, ok := textPart.(llms.TextPart)
 	suite.True(ok)
 	suite.Contains(text.Text, "beep")
 }
@@ -76,7 +76,7 @@ func (suite *GeminiTestSuite) TestGenerateStreamWithToolCalls() {
 	suite.T().Parallel()
 	ctx := context.Background()
 	client, err := gemini.New(
-		gemini.WithTools([]llmite.Tool{
+		gemini.WithTools([]llms.Tool{
 			testutil.NewBoopTool(),
 		}),
 		gemini.WithSystemInstruction("You are a helpful assistant. That helps the user translate things."),
@@ -84,9 +84,9 @@ func (suite *GeminiTestSuite) TestGenerateStreamWithToolCalls() {
 	)
 	suite.Require().NoError(err)
 
-	userMsg := llmite.NewTextMessage(llmite.RoleUser, "My computer said `boop boop boop` when I turned it on. What does that mean?")
+	userMsg := llms.NewTextMessage(llms.RoleUser, "My computer said `boop boop boop` when I turned it on. What does that mean?")
 
-	resp, err := client.GenerateStream(ctx, []llmite.Message{userMsg}, func(response *llmite.Response, err error) bool {
+	resp, err := client.GenerateStream(ctx, []llms.Message{userMsg}, func(response *llms.Response, err error) bool {
 		fmt.Printf("Stream response: %+v\n", response)
 		return true
 	})
@@ -100,9 +100,9 @@ func (suite *GeminiTestSuite) TestGenerateStreamWithToolCalls() {
 
 	for _, part := range resp.Message.Parts {
 		switch p := part.(type) {
-		// case llmite.TextPart:
+		// case llms.TextPart:
 		// 	hasTextPart = true
-		case llmite.ToolCallPart:
+		case llms.ToolCallPart:
 			hasToolPart = true
 
 			var params testutil.BoopToolParams

@@ -11,11 +11,11 @@ import (
 
 func TestConvertMessages(t *testing.T) {
 	t.Run("system message", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleSystem,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "You are a helpful assistant."},
+				Role: llms.RoleSystem,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "You are a helpful assistant."},
 				},
 			},
 		}
@@ -27,11 +27,11 @@ func TestConvertMessages(t *testing.T) {
 	})
 
 	t.Run("user message", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleUser,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "Hello, world!"},
+				Role: llms.RoleUser,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "Hello, world!"},
 				},
 			},
 		}
@@ -43,11 +43,11 @@ func TestConvertMessages(t *testing.T) {
 	})
 
 	t.Run("assistant message with text", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleAssistant,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "Hello!"},
+				Role: llms.RoleAssistant,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "Hello!"},
 				},
 			},
 		}
@@ -59,11 +59,11 @@ func TestConvertMessages(t *testing.T) {
 	})
 
 	t.Run("assistant message with tool call", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleAssistant,
-				Parts: []llmite.Part{
-					llmite.ToolCallPart{
+				Role: llms.RoleAssistant,
+				Parts: []llms.Part{
+					llms.ToolCallPart{
 						ID:    "call_123",
 						Name:  "get_weather",
 						Input: []byte(`{"location": "San Francisco"}`),
@@ -79,11 +79,11 @@ func TestConvertMessages(t *testing.T) {
 	})
 
 	t.Run("tool result message", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleAssistant,
-				Parts: []llmite.Part{
-					llmite.ToolResultPart{
+				Role: llms.RoleAssistant,
+				Parts: []llms.Part{
+					llms.ToolResultPart{
 						ToolCallID: "call_123",
 						Name:       "get_weather",
 						Result:     "Sunny, 72°F",
@@ -99,23 +99,23 @@ func TestConvertMessages(t *testing.T) {
 	})
 
 	t.Run("mixed message types", func(t *testing.T) {
-		messages := []llmite.Message{
+		messages := []llms.Message{
 			{
-				Role: llmite.RoleSystem,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "You are helpful."},
+				Role: llms.RoleSystem,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "You are helpful."},
 				},
 			},
 			{
-				Role: llmite.RoleUser,
-				Parts: []llmite.Part{
-					llmite.TextPart{Text: "What's the weather?"},
+				Role: llms.RoleUser,
+				Parts: []llms.Part{
+					llms.TextPart{Text: "What's the weather?"},
 				},
 			},
 			{
-				Role: llmite.RoleAssistant,
-				Parts: []llmite.Part{
-					llmite.ToolCallPart{
+				Role: llms.RoleAssistant,
+				Parts: []llms.Part{
+					llms.ToolCallPart{
 						ID:    "call_123",
 						Name:  "get_weather",
 						Input: []byte(`{"location": "default"}`),
@@ -139,13 +139,13 @@ func TestConvertTools(t *testing.T) {
 	})
 
 	t.Run("empty tools", func(t *testing.T) {
-		result, err := convertTools([]llmite.Tool{})
+		result, err := convertTools([]llms.Tool{})
 		require.NoError(t, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("single tool", func(t *testing.T) {
-		tools := []llmite.Tool{
+		tools := []llms.Tool{
 			testutil.WeatherTool{},
 		}
 
@@ -159,7 +159,7 @@ func TestConvertTools(t *testing.T) {
 	})
 
 	t.Run("multiple tools", func(t *testing.T) {
-		tools := []llmite.Tool{
+		tools := []llms.Tool{
 			testutil.WeatherTool{},
 			testutil.CalculatorTool{},
 		}

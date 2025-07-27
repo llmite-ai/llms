@@ -11,7 +11,7 @@ import (
 
 type BoopTool struct{}
 
-func NewBoopTool() llmite.Tool {
+func NewBoopTool() llms.Tool {
 	return &BoopTool{}
 }
 
@@ -28,20 +28,20 @@ type BoopToolParams struct {
 }
 
 func (t *BoopTool) Schema() *jsonschema.Schema {
-	return llmite.GenerateSchema[BoopToolParams]()
+	return llms.GenerateSchema[BoopToolParams]()
 }
 
-func (t *BoopTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
+func (t *BoopTool) Execute(ctx context.Context, args []byte) *llms.ToolResult {
 	var params BoopToolParams
 	err := json.Unmarshal(args, &params)
 	if err != nil {
-		return &llmite.ToolResult{
+		return &llms.ToolResult{
 			ID:    "boop",
 			Error: err,
 		}
 	}
 
-	return &llmite.ToolResult{
+	return &llms.ToolResult{
 		ID:      "boop",
 		Content: `beep boop beep boop` + params.BoopString,
 	}
@@ -63,20 +63,20 @@ type WeatherToolParams struct {
 }
 
 func (t WeatherTool) Schema() *jsonschema.Schema {
-	return llmite.GenerateSchema[WeatherToolParams]()
+	return llms.GenerateSchema[WeatherToolParams]()
 }
 
-func (t WeatherTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
+func (t WeatherTool) Execute(ctx context.Context, args []byte) *llms.ToolResult {
 	var params WeatherToolParams
 	err := json.Unmarshal(args, &params)
 	if err != nil {
-		return &llmite.ToolResult{
+		return &llms.ToolResult{
 			ID:    "weather",
 			Error: err,
 		}
 	}
 
-	return &llmite.ToolResult{
+	return &llms.ToolResult{
 		ID:      "weather",
 		Content: `The weather in ` + params.Location + ` is sunny, 72°F`,
 	}
@@ -98,20 +98,20 @@ type CalculatorToolParams struct {
 }
 
 func (t CalculatorTool) Schema() *jsonschema.Schema {
-	return llmite.GenerateSchema[CalculatorToolParams]()
+	return llms.GenerateSchema[CalculatorToolParams]()
 }
 
-func (t CalculatorTool) Execute(ctx context.Context, args []byte) *llmite.ToolResult {
+func (t CalculatorTool) Execute(ctx context.Context, args []byte) *llms.ToolResult {
 	var params CalculatorToolParams
 	err := json.Unmarshal(args, &params)
 	if err != nil {
-		return &llmite.ToolResult{
+		return &llms.ToolResult{
 			ID:    "calculator",
 			Error: err,
 		}
 	}
 
-	return &llmite.ToolResult{
+	return &llms.ToolResult{
 		ID:      "calculator",
 		Content: `Result: 42`, // Simplified for testing
 	}

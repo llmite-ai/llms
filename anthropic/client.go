@@ -20,7 +20,7 @@ type Client struct {
 	Temperature *float64
 	TopP        *float64
 	TopK        *int64
-	Tools       []llmite.Tool
+	Tools       []llms.Tool
 
 	client  *anthropic.Client
 	options []option.RequestOption
@@ -29,7 +29,7 @@ type Client struct {
 type Modifer func(*Client)
 
 // WithOptions allows you to set options on the client. This is useful for setting
-// options that are not exposed by the llmite.Anthropic struct, such as setting a
+// options that are not exposed by the llms.Anthropic struct, such as setting a
 // custom HTTP client, timeout, or base URL.
 func WithAnthropicClientOptions(options ...option.RequestOption) Modifer {
 	return func(a *Client) {
@@ -41,7 +41,7 @@ func WithAnthropicClientOptions(options ...option.RequestOption) Modifer {
 // logger.
 func WithHttpLogging() Modifer {
 	return func(a *Client) {
-		client := llmite.NewDefaultHTTPClientWithLogging()
+		client := llms.NewDefaultHTTPClientWithLogging()
 		a.options = append(a.options, option.WithHTTPClient(client))
 	}
 }
@@ -61,7 +61,7 @@ func WithMaxTokens(maxTokens int64) Modifer {
 }
 
 // With Tools allows you to set the tools on the client.
-func WithTools(tools []llmite.Tool) Modifer {
+func WithTools(tools []llms.Tool) Modifer {
 	return func(a *Client) {
 		a.Tools = tools
 	}
@@ -70,7 +70,7 @@ func WithTools(tools []llmite.Tool) Modifer {
 // New creates a new Anthropic client with the packages default options.
 // This includes reading the ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, and
 // ANTHROPIC_BASE_URL environment variables.
-func New(mods ...Modifer) llmite.LLM {
+func New(mods ...Modifer) llms.LLM {
 	c := &Client{
 		Model:     string(anthropic.ModelClaude3_7SonnetLatest),
 		MaxTokens: 1024,
@@ -94,7 +94,7 @@ func (a *Client) GetClient() *anthropic.Client {
 	return a.client
 }
 
-func (a *Client) BuildRequest(ctx context.Context, messages []llmite.Message) (*anthropic.MessageNewParams, error) {
+func (a *Client) BuildRequest(ctx context.Context, messages []llms.Message) (*anthropic.MessageNewParams, error) {
 	system, anthMessages, err := convertMessages(messages)
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func (a *Client) BuildRequest(ctx context.Context, messages []llmite.Message) (*
 	return &body, nil
 }
 
-func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmite.Response, error) {
+func (a *Client) Generate(ctx context.Context, messages []llms.Message) (*llms.Response, error) {
 	body, err := a.BuildRequest(ctx, messages)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: failed to build request: %w", err)
@@ -137,7 +137,7 @@ func (a *Client) Generate(ctx context.Context, messages []llmite.Message) (*llmi
 	return convertMessageToResponse(msg)
 }
 
-func (a *Client) GenerateStream(ctx context.Context, messages []llmite.Message, fn llmite.StreamFunc) (*llmite.Response, error) {
+func (a *Client) GenerateStream(ctx context.Context, messages []llms.Message, fn llms.StreamFunc) (*llms.Response, error) {
 	body, err := a.BuildRequest(ctx, messages)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: failed to build request: %w", err)
@@ -182,10 +182,10 @@ func (a *Client) GenerateStream(ctx context.Context, messages []llmite.Message, 
 	return convertMessageToResponse(message)
 }
 
-func convertMessageToResponse(msg *anthropic.Message) (*llmite.Response, error) {
-	msgOut := llmite.Message{
-		Role:  llmite.RoleAssistant,
-		Parts: []llmite.Part{},
+func convertMessageToResponse(msg *anthropic.Message) (*llms.Response, error) {
+	msgOut := llms.Message{
+		Role:  llms.RoleAssistant,
+		Parts: []llms.Part{},
 	}
 
 	errs := make([]error, 0)
@@ -193,11 +193,11 @@ func convertMessageToResponse(msg *anthropic.Message) (*llmite.Response, error) 
 	for i, block := range msg.Content {
 		switch block.Type {
 		case "text":
-			msgOut.Parts = append(msgOut.Parts, llmite.TextPart{
+			msgOut.Parts = append(msgOut.Parts, llms.TextPart{
 				Text: block.Text,
 			})
 		case "tool_use":
-			msgOut.Parts = append(msgOut.Parts, llmite.ToolCallPart{
+			msgOut.Parts = append(msgOut.Parts, llms.ToolCallPart{
 				ID:    block.ToolUseID,
 				Name:  block.Name,
 				Input: block.Input,
@@ -207,7 +207,7 @@ func convertMessageToResponse(msg *anthropic.Message) (*llmite.Response, error) 
 		}
 	}
 
-	out := &llmite.Response{
+	out := &llms.Response{
 		ID:       msg.ID,
 		Message:  msgOut,
 		Provider: ProviderAnthropic,
@@ -221,7 +221,7 @@ func convertMessageToResponse(msg *anthropic.Message) (*llmite.Response, error) 
 	return out, nil
 }
 
-func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []anthropic.MessageParam, error) {
+func convertMessages(messages []llms.Message) ([]anthropic.TextBlockParam, []anthropic.MessageParam, error) {
 	system := []anthropic.TextBlockParam{}
 	out := make([]anthropic.MessageParam, 0, len(messages))
 
@@ -229,10 +229,10 @@ func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []a
 		// If the message is a system message, we need to convert it to a
 		// system prompt. We do this by appending the message parts to the
 		// system TextBlockParams.
-		if message.Role == llmite.RoleSystem {
+		if message.Role == llms.RoleSystem {
 			for _, part := range message.Parts {
 				switch p := part.(type) {
-				case llmite.TextPart:
+				case llms.TextPart:
 					system = append(system, anthropic.TextBlockParam{
 						Text: p.Text,
 					})
@@ -247,9 +247,9 @@ func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []a
 		// Convert the role
 		anthMessage := anthropic.MessageParam{}
 		switch message.Role {
-		case llmite.RoleUser:
+		case llms.RoleUser:
 			anthMessage.Role = anthropic.MessageParamRoleUser
-		case llmite.RoleAssistant:
+		case llms.RoleAssistant:
 			anthMessage.Role = anthropic.MessageParamRoleAssistant
 		default:
 			return system, nil, fmt.Errorf("[message %d] anthropic: unsupported message role: %s", i, message.Role)
@@ -259,13 +259,13 @@ func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []a
 		anthMessage.Content = []anthropic.ContentBlockParamUnion{}
 		for j, part := range message.Parts {
 			switch p := part.(type) {
-			case llmite.TextPart:
+			case llms.TextPart:
 				anthMessage.Content = append(anthMessage.Content, anthropic.ContentBlockParamUnion{
 					OfText: &anthropic.TextBlockParam{
 						Text: p.Text,
 					},
 				})
-			case llmite.ToolCallPart:
+			case llms.ToolCallPart:
 				anthMessage.Content = append(anthMessage.Content, anthropic.ContentBlockParamUnion{
 					OfToolUse: &anthropic.ToolUseBlockParam{
 						ID:    p.ID,
@@ -273,7 +273,7 @@ func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []a
 						Input: p.Input,
 					},
 				})
-			case llmite.ToolResultPart:
+			case llms.ToolResultPart:
 				c := anthropic.ContentBlockParamUnion{
 					OfToolResult: &anthropic.ToolResultBlockParam{
 						ToolUseID: p.ToolCallID,
@@ -303,7 +303,7 @@ func convertMessages(messages []llmite.Message) ([]anthropic.TextBlockParam, []a
 	return system, out, nil
 }
 
-func convertTools(tools []llmite.Tool) ([]anthropic.ToolUnionParam, error) {
+func convertTools(tools []llms.Tool) ([]anthropic.ToolUnionParam, error) {
 	out := make([]anthropic.ToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
