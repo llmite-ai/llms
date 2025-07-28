@@ -73,7 +73,7 @@ func WithTools(tools []llms.Tool) Modifer {
 // ANTHROPIC_BASE_URL environment variables.
 func New(mods ...Modifer) llms.LLM {
 	c := &Client{
-		Model:     string(anthropic.ModelClaude3_7SonnetLatest),
+		Model:     string(anthropic.ModelClaudeSonnet4_20250514),
 		MaxTokens: 1024,
 		options:   []option.RequestOption{},
 	}
@@ -352,6 +352,32 @@ func convertTools(tools []llms.Tool) (
 			}
 			out = append(out, anthTool)
 			opts = append(opts, option.WithMiddleware(t.Middleware()))
+
+		case WebSearchTool:
+			p := anthropic.WebSearchTool20250305Param{
+				AllowedDomains: t.AllowedDomains,
+				BlockedDomains: t.BlockedDomains,
+			}
+
+			if t.MaxUses > 0 {
+				p.MaxUses = param.NewOpt[int64](t.MaxUses)
+			}
+
+			if t.UserLocation.City != "" || t.UserLocation.Country != "" ||
+				t.UserLocation.Region != "" || t.UserLocation.Timezone != "" {
+				p.UserLocation = anthropic.WebSearchTool20250305UserLocationParam{
+					City:     param.NewOpt(t.UserLocation.City),
+					Country:  param.NewOpt(t.UserLocation.Country),
+					Region:   param.NewOpt(t.UserLocation.Region),
+					Timezone: param.NewOpt(t.UserLocation.Timezone),
+				}
+			}
+
+			anthTool := anthropic.ToolUnionParam{
+				OfWebSearchTool20250305: &p,
+			}
+			out = append(out, anthTool)
+
 		default:
 			anthTool := anthropic.ToolUnionParam{
 				OfTool: &anthropic.ToolParam{
